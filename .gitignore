@@ -1,0 +1,16 @@
+# 依赖与构建产物
+node_modules/
+dist/
+*.log
+
+# 生成的媒体文件（图片/视频体积大，不入库）
+qwen-image-*.png
+qwen-video-*.mp4
+lmshot.png
+
+# 本地备份目录
+.fix-backup/
+lmstudio-cleanup-backup/
+
+# 系统文件
+.DS_Store

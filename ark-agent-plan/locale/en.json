@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Volcengine Ark Agent Plan",
+    "description": "Registers the Volcengine Ark Agent Plan route in the model picker, with a live-probed model catalog, thinking-effort control, and server-side harness tools."
+  }
+}

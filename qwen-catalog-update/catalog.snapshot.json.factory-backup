@@ -1,0 +1,334 @@
+{
+  "version": 3,
+  "source": "official-docs+verified-probes",
+  "syncedAt": "2026-09-04T07:43:41.603Z",
+  "reasoningProbedAt": "2026-09-04T15:40:00.000Z",
+  "models": [
+    {
+      "id": "qwen3.8-max",
+      "brand": "千问",
+      "capabilities": "推理模型、视觉理解、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "low",
+        "medium",
+        "xhigh"
+      ],
+      "defaultReasoningEffort": "xhigh",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {
+        "high": "xhigh",
+        "max": "xhigh"
+      },
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 983616,
+      "maxTokens": 131072,
+      "harnessTools": [
+        "web_search",
+        "code_interpreter",
+        "web_extractor",
+        "web_search_image",
+        "image_search"
+      ]
+    },
+    {
+      "id": "qwen3.8-flash",
+      "brand": "千问",
+      "capabilities": "推理模型、视觉理解、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "low",
+        "medium",
+        "xhigh"
+      ],
+      "defaultReasoningEffort": "xhigh",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {
+        "high": "xhigh",
+        "max": "xhigh"
+      },
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 983616,
+      "maxTokens": 131072,
+      "harnessTools": [
+        "web_search",
+        "code_interpreter",
+        "web_extractor",
+        "web_search_image",
+        "image_search"
+      ]
+    },
+    {
+      "id": "qwen3.7-max",
+      "brand": "千问",
+      "capabilities": "推理模型、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "defaultReasoningEffort": "xhigh",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {},
+      "input": [
+        "text"
+      ],
+      "contextWindow": 1000000,
+      "maxTokens": 65536,
+      "harnessTools": [
+        "web_search",
+        "code_interpreter",
+        "web_extractor"
+      ]
+    },
+    {
+      "id": "qwen3.7-plus",
+      "brand": "千问",
+      "capabilities": "推理模型、视觉理解、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "defaultReasoningEffort": "xhigh",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {},
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1000000,
+      "maxTokens": 65536,
+      "harnessTools": [
+        "web_search",
+        "code_interpreter",
+        "web_extractor",
+        "web_search_image",
+        "image_search"
+      ]
+    },
+    {
+      "id": "qwen3.6-flash",
+      "brand": "千问",
+      "capabilities": "推理模型、视觉理解、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "defaultReasoningEffort": "xhigh",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {},
+      "input": [
+        "text",
+        "image"
+      ],
+      "contextWindow": 1000000,
+      "maxTokens": 32768,
+      "harnessTools": []
+    },
+    {
+      "id": "glm-5.2",
+      "brand": "智谱 AI",
+      "capabilities": "推理模型、文本生成",
+      "transport": "chat",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "high",
+        "max"
+      ],
+      "defaultReasoningEffort": "high",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {
+        "minimal": "none",
+        "low": "high",
+        "medium": "high",
+        "xhigh": "max"
+      },
+      "input": [
+        "text"
+      ],
+      "contextWindow": 1000000,
+      "maxTokens": 16384,
+      "harnessTools": []
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "brand": "DeepSeek",
+      "capabilities": "推理模型、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "high",
+        "max"
+      ],
+      "defaultReasoningEffort": "high",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {
+        "low": "high",
+        "medium": "high",
+        "xhigh": "max"
+      },
+      "input": [
+        "text"
+      ],
+      "contextWindow": 163840,
+      "maxTokens": 32768,
+      "harnessTools": []
+    },
+    {
+      "id": "deepseek-v4-pro-0813",
+      "brand": "DeepSeek",
+      "capabilities": "推理模型、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "low",
+        "high",
+        "max"
+      ],
+      "defaultReasoningEffort": "high",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {
+        "medium": "high",
+        "xhigh": "high"
+      },
+      "input": [
+        "text"
+      ],
+      "contextWindow": 163840,
+      "maxTokens": 32768,
+      "harnessTools": []
+    },
+    {
+      "id": "deepseek-v4-flash-0731",
+      "brand": "DeepSeek",
+      "capabilities": "推理模型、文本生成",
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "low",
+        "high",
+        "max"
+      ],
+      "defaultReasoningEffort": "high",
+      "acceptedReasoningEfforts": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "rejectedReasoningEfforts": [],
+      "reasoningAliases": {
+        "medium": "high",
+        "xhigh": "high"
+      },
+      "input": [
+        "text"
+      ],
+      "contextWindow": 1000000,
+      "maxTokens": 393216,
+      "harnessTools": []
+    }
+  ],
+  "fingerprint": "15d42f4259926dcb37a35e2db80f2a1e77d3e63ab1ef23457a88ecc39687fc3f"
+}
