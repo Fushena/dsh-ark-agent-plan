@@ -1,0 +1,9 @@
+# dsh-ark-agent-plan — Volcengine Ark Agent Plan provider for DeepSeek Harness.
+#
+# Single inert carrier row; all behaviour lives in index.js (apply). The row
+# carries `config: {}` so the Settings page can edit this plugin's Config
+# schema (credential ref, endpoint, catalog refresh, harness tool policy).
+- insert:
+    - id: ark-agent-plan
+      name: dsh-ark-agent-plan
+      config: {}

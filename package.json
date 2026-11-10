@@ -1,0 +1,50 @@
+{
+  "name": "dsh-ark-agent-plan",
+  "version": "1.0.1",
+  "description": "Volcengine Ark Agent Plan provider for DeepSeek Harness: dynamic model catalog, thinking-effort control, and server-side harness tools (web search / code interpreter / web extractor).",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json",
+    "./client": "./lib/client.js"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "lib/*.js",
+    "lib/*.json",
+    "README.md",
+    "lib/client.js"
+  ],
+  "scripts": {
+    "test": "node test/run.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "external": [
+        "react-dom"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1 || ^4.0.2 || ^4.1.0",
+    "@deepseek-ai/dsh-credentials": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.2.1-rc.5 || ^0.2.2-rc.1",
+    "@deepseek-ai/schemastery": "~3.18.5 || ~3.19.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  },
+  "license": "MIT"
+}
