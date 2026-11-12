@@ -2,6 +2,22 @@
 
 Volcengine Ark **Agent Plan** provider for DeepSeek Harness (DSH 0.2.x), authored against the live gateway on 2026-11-05.
 
+## 前置条件与平台支持 / Prerequisites
+
+- **DSH 版本**：针对 DeepSeek Harness **0.2.2-rc.1** 开发与验证；peer 依赖
+  `@deepseek-ai/dsh-llm` / `@deepseek-ai/dsh-credentials` 范围为
+  `^0.2.1-rc.5 || ^0.2.2-rc.1`（0.2.1-rc.5 至 0.2.2-rc.x 均可安装）。
+- **账号**：需要火山引擎 Ark **Agent Plan** 订阅，并在 Settings → Models 配置凭据引用
+  `ARK_AGENT_PLAN_CN_API_KEY`；缺失时请求报 `MISSING_CREDENTIAL`。
+- **额度面板前置**：首次凭据 bootstrap 依赖第三方插件
+  [dsh-chrome-bridge](https://github.com/OrderG-X/dsh-chrome-bridge) 及其 Chrome 扩展
+  （收割控制台 Cookie）。未安装时面板提示「浏览器桥不可用」，**聊天功能不受影响**；
+  收割成功并落盘（`~/.dsh/.ark-plan-console-cookie.json`，0600）后，刷新不再需要 Chrome。
+- **网络/代理**：大陆网络直连 `console.volcengine.com` 会被 TLS 重置（额度面板报
+  `fetch failed`）；Node 的 `fetch` 不读系统代理，需配置 `proxy` 或 `HTTPS_PROXY`，见下文专节。
+- **平台**：聊天、动态目录、代理支持跨平台（macOS/Windows/Linux）；额度收割经
+  dsh-chrome-bridge 的 Unix socket / Windows named pipe，各平台一致。
+
 ## Features
 
 - Native model-picker integration through `registerConfigurableProviders` + `registerAdapter` (the visibility pattern verified working in DSH 0.2.2-rc.1).
@@ -59,7 +75,7 @@ Volcengine Ark **Agent Plan** provider for DeepSeek Harness (DSH 0.2.x), authore
 全部离线（不访问网络、不读取个人凭据），用注入式 fetch / 受控时钟驱动：
 
 ```bash
-cd /Users/fushe/Documents/deepseek-harness/default-workspace/ark-agent-plan
+cd ark-agent-plan   # 进入本插件目录（clone 后的实际路径）
 node test/run.mjs
 ```
 
@@ -72,6 +88,7 @@ node test/run.mjs
 | `test/timeout.test.mjs` | 超时是**空闲超时**不是总时长：持续有数据的长回答不得被掐断 |
 | `test/catalog.test.mjs` | 401/403/429/5xx 的探测结果一律「无结论」，刷新失败并保留旧目录；`excludes`/`overrides` 在初始快照即生效 |
 | `test/quota.test.mjs` | 退避窗口内的面板轮询不得把退避自我放大到 30 分钟上限 |
+| `test/proxy.test.mjs` | undici 候选目录不得含 `process.cwd()`（宿主 RCE 回归）；home 兜底用 `os.homedir()`（Windows 上 `process.env.HOME` 为空） |
 
 测试用本机 DeepSeek Harness 内置运行时；其他安装路径用 `DSH_TEST_NODE` 指定。
 
