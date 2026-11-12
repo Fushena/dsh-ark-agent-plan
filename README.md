@@ -2,6 +2,38 @@
 
 Volcengine Ark **Agent Plan** provider for DeepSeek Harness (DSH 0.2.x), authored against the live gateway on 2026-11-05.
 
+## Installation / 如何安装
+
+Three routes, all ending with the bundle enabled in your profile. Release tags are listed at <https://github.com/Fushena/dsh-ark-agent-plan/tags>.
+
+**A. Plugins page (recommended — Desktop & Web)**
+Open the host's **Plugins** page (sidebar) or **Settings → Plugins**, open the install dialog and paste the git spec:
+
+```
+github:Fushena/dsh-ark-agent-plan
+```
+
+Append a tag to pin a release, e.g. `github:Fushena/dsh-ark-agent-plan#v1.0.2`. The host fetches the repository, installs it into the active profile and enables the bundle; with HMR on it goes live after a page refresh, otherwise restart the host.
+
+**B. Command line**
+
+```sh
+dsh plugin --profile <profile> add github:Fushena/dsh-ark-agent-plan
+```
+
+Replace `<profile>` with the profile your host actually runs — the Desktop app's is usually `desktop` (`echo $DSH_PROFILE` inside a session shows it). Installing into the wrong profile (e.g. `web` while running Desktop) makes the plugin invisible to your app.
+
+**C. From a clone (development / offline)**
+
+```sh
+git clone https://github.com/Fushena/dsh-ark-agent-plan.git
+dsh plugin --profile <profile> add link:/absolute/path/to/dsh-ark-agent-plan
+```
+
+or ask a DSH agent to call `plugin_manager` → `install_bundle` with the clone's absolute directory as `target`.
+
+**After install**: configure the credential reference `ARK_AGENT_PLAN_CN_API_KEY` under Settings → Models (see Prerequisites below), then pick the provider in the model selector. Updates: reinstall a newer tag, or re-run the same `add` command.
+
 ## 前置条件与平台支持 / Prerequisites
 
 - **DSH 版本**：针对 DeepSeek Harness **0.2.2-rc.1** 开发与验证；peer 依赖
