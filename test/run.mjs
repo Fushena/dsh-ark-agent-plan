@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 const electron = process.env.DSH_TEST_NODE ?? '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness';
 const executable = existsSync(electron) ? electron : process.execPath;
 const runtime = fileURLToPath(new URL('./runtime.mjs', import.meta.url));
-const tests = ['sse.test.mjs', 'stream.test.mjs', 'timeout.test.mjs', 'catalog.test.mjs', 'quota.test.mjs', 'client-badge.test.mjs', 'proxy.test.mjs', 'browser-discipline.test.mjs']
+const tests = ['sse.test.mjs', 'stream.test.mjs', 'timeout.test.mjs', 'catalog.test.mjs', 'quota.test.mjs', 'client-badge.test.mjs', 'proxy.test.mjs', 'browser-discipline.test.mjs', 'model-display.test.mjs']
   .map((name) => fileURLToPath(new URL(name, import.meta.url)));
 
 let failed = 0;

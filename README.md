@@ -13,7 +13,7 @@ Open the host's **Plugins** page (sidebar) or **Settings → Plugins**, open the
 github:Fushena/dsh-ark-agent-plan
 ```
 
-Append a tag to pin a release, e.g. `github:Fushena/dsh-ark-agent-plan#v1.0.2`. The host fetches the repository, installs it into the active profile and enables the bundle; with HMR on it goes live after a page refresh, otherwise restart the host.
+Append a tag to pin a release, e.g. `github:Fushena/dsh-ark-agent-plan#v1.0.3`. The host fetches the repository, installs it into the active profile and enables the bundle; with HMR on it goes live after a page refresh, otherwise restart the host.
 
 **B. Command line**
 
