@@ -13,7 +13,7 @@ Open the host's **Plugins** page (sidebar) or **Settings → Plugins**, open the
 github:Fushena/dsh-ark-agent-plan
 ```
 
-Append a tag to pin a release, e.g. `github:Fushena/dsh-ark-agent-plan#v1.0.3`. The host fetches the repository, installs it into the active profile and enables the bundle; with HMR on it goes live after a page refresh, otherwise restart the host.
+Append a tag to pin a release, e.g. `github:Fushena/dsh-ark-agent-plan#v1.0.4`. The host fetches the repository, installs it into the active profile and enables the bundle; with HMR on it goes live after a page refresh, otherwise restart the host.
 
 **B. Command line**
 
@@ -121,6 +121,11 @@ node test/run.mjs
 | `test/catalog.test.mjs` | 401/403/429/5xx 的探测结果一律「无结论」，刷新失败并保留旧目录；`excludes`/`overrides` 在初始快照即生效 |
 | `test/quota.test.mjs` | 退避窗口内的面板轮询不得把退避自我放大到 30 分钟上限 |
 | `test/proxy.test.mjs` | undici 候选目录不得含 `process.cwd()`（宿主 RCE 回归）；home 兜底用 `os.homedir()`（Windows 上 `process.env.HOME` 为空） |
+| `test/route-guard.test.mjs` | Origin 必须按完整 authority（host+端口）校验：本机异端口 same-site 页面拒绝，合法同源/默认端口归一放行（2026-11-13 审计） |
+| `test/errors.test.mjs` | 429/5xx 先按状态码分类（RATE_LIMIT/SERVER 可重试），不被 body 里的 quota 字样抢判；缺 `index` 的 tool_calls delta 合并为同一块（2026-11-13 审计） |
+| `test/quota-audit.test.mjs` | 退避不挡手动「更新凭据」；并发手动刷新去重不互踩；窗口过期后 used 清零、remaining 恢复满额（2026-11-13 审计） |
+
+v1.0.4（2026-11-13 安全与稳定性审计）另钉死：内置工具长时间执行时 SSE 进行中事件必须续命空闲超时（`stream.test.mjs` D / `sse.test.mjs`）；身份校验前缀按段对齐（`glm-5.3-flash` 回显 `glm-5.3` 判不同模型剔除）；瞬时探测故障不进 6h 缓存；目录 signature 覆盖全部规格字段。
 
 测试用本机 DeepSeek Harness 内置运行时；其他安装路径用 `DSH_TEST_NODE` 指定。
 

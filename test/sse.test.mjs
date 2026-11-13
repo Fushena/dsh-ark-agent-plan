@@ -111,4 +111,23 @@ const openText = [
   assert.equal(activityCount(twoCalls), 2, '两个不同 output_index 的真实调用出现两次');
 }
 
-console.log('sse.test.mjs: 全部断言通过（#1 未闭合块/终止事件 + #3 活动项去重）');
+// ── 审计#1 解析器层：工具进行中/心跳类事件必须产出续命信号（heartbeat），
+//    但不得产生内容块、不得改变 finish 语义（adapter 靠它 touch 空闲超时）。
+{
+  const chunks = await collect([
+    { type: 'response.output_item.added', output_index: 0, item: { id: 'ws_1', type: 'web_search_call', status: 'in_progress' } },
+    { type: 'response.web_search_call.searching', output_index: 0, item_id: 'ws_1' },
+    { type: 'response.web_search_call.searching', output_index: 0, item_id: 'ws_1' },
+    { type: 'response.output_item.done', output_index: 0, item: { id: 'ws_1', type: 'web_search_call', status: 'completed' } },
+    { type: 'response.output_item.added', output_index: 1, item: { id: 'msg_1', type: 'message' } },
+    { type: 'response.output_text.delta', output_index: 1, delta: 'ok' },
+    { type: 'response.output_item.done', output_index: 1, item: { id: 'msg_1', type: 'message', content: [{ type: 'output_text', text: 'ok' }] } },
+    { type: 'response.completed', response: {} },
+  ]);
+  assert.equal(chunks.filter((chunk) => chunk.type === 'heartbeat').length, 2, '每个 searching 事件应 yield 一个 heartbeat 续命信号');
+  assert.equal(activityCount(chunks), 1, 'heartbeat 不得影响活动项计数');
+  assert.equal(finishOf(chunks)?.kind, 'stop', 'heartbeat 不得改变 finish 语义');
+  assert.ok(textOf(chunks).includes('ok'), '正常文本不受影响');
+}
+
+console.log('sse.test.mjs: 全部断言通过（#1 未闭合块/终止事件 + #3 活动项去重 + 审计#1 进行中事件续命信号）');

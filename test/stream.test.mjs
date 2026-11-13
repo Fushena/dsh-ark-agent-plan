@@ -116,4 +116,43 @@ await withServer((req, res) => {
   });
 });
 
-console.log('stream.test.mjs: 全部断言通过（真实 SSE 服务器：A 长流/ B 卡死超时/ C 取消）');
+// D. 内置工具长时间执行：SSE 持续有 searching 事件但没有 text-delta。
+//    空闲超时必须按「SSE 事件到达」续命，不能把健康请求掐成 TIMEOUT（审计 #1）。
+//    工具执行 1.5s（事件每 150ms），阈值 400ms：修前解析器对 searching 不 yield，
+//    adapter 不 touch → 400ms 即 TIMEOUT；修后正常读完。
+const TOOL_MODEL = { ...MODEL, harnessTools: ['web_search'] };
+await withServer((req, res) => {
+  res.writeHead(200, SSE_HEADERS);
+  send(res, { type: 'response.output_item.added', output_index: 0, item: { id: 'ws', type: 'web_search_call', status: 'in_progress' } });
+  let i = 0;
+  const timer = setInterval(() => {
+    i += 1;
+    if (i <= 10) {
+      send(res, { type: 'response.web_search_call.searching', output_index: 0, item_id: 'ws' });
+      return;
+    }
+    clearInterval(timer);
+    send(res, { type: 'response.output_item.done', output_index: 0, item: { id: 'ws', type: 'web_search_call', status: 'completed' } });
+    send(res, { type: 'response.output_item.added', output_index: 1, item: { id: 'm', type: 'message' } });
+    send(res, { type: 'response.output_text.delta', output_index: 1, delta: 'answer' });
+    send(res, { type: 'response.output_item.done', output_index: 1, item: { id: 'm', type: 'message', content: [{ type: 'output_text', text: 'answer' }] } });
+    send(res, { type: 'response.completed', response: { usage: { input_tokens: 1, output_tokens: 1 } } });
+    res.end();
+  }, 150);
+}, async (port) => {
+  const adapter = new ArkAgentPlanAdapter({
+    ctx, catalog: { find: () => TOOL_MODEL, snapshot: () => ({ models: [] }) },
+    providerId: 'ark-agent-plan', displayName: 'Ark', apiKeyCandidates: ['T'],
+    endpoint: `http://127.0.0.1:${port}/responses`, chatEndpoint: `http://127.0.0.1:${port}/chat`,
+    harnessMode: { mode: 'auto' }, pluginName: 'test', defaultReasoning: 'high',
+    requestTimeoutMs: 400, fetchImpl: globalThis.fetch,
+  });
+  let text = '';
+  for await (const chunk of adapter.stream({ model: TOOL_MODEL.id, messages: [], signal: new AbortController().signal })) {
+    assert.notEqual(chunk.type, 'heartbeat', 'D: heartbeat 只是续命信号，不得转发给上层');
+    if (chunk.type === 'text-delta') text += chunk.text;
+  }
+  assert.ok(text.includes('answer'), 'D: 工具执行期间事件持续到达，请求必须正常完成而非 TIMEOUT');
+});
+
+console.log('stream.test.mjs: 全部断言通过（真实 SSE 服务器：A 长流/ B 卡死超时/ C 取消/ D 工具进行中续命）');
