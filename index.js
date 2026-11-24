@@ -6,6 +6,7 @@ import { ArkQuota, bridgeAvailable } from "./lib/quota.js";
 import { AFP_PRICING } from "./lib/pricing.js";
 import { createProxyFetch, redactProxyUrl } from "./lib/proxy.js";
 import { trustedRouteRequest } from "./lib/route-guard.js";
+import { createArkTools } from "./lib/ark-tools.js";
 
 const DEFAULT_ENDPOINT = "https://ark.cn-beijing.volces.com/api/plan/v3";
 const DEFAULT_KEY_CANDIDATES = ["ARK_AGENT_PLAN_CN_API_KEY", "ARK_AGENT_PLAN_API_KEY", "VOLCENGINE_ARK_PLAN_API_KEY", "ARK_CODE_API_KEY"];
@@ -33,6 +34,58 @@ export const Config = z.object({
   // 出站代理：留空读 HTTPS_PROXY/HTTP_PROXY/ALL_PROXY 环境变量；"none"/"off"/"direct" 强制直连。
   // Node 默认不继承系统代理，而控制台域名在无代理时 TLS 会被重置（额度面板报 fetch failed）。
   proxy: z.string().default(""),
+
+  // ── Ark Responses API 的 MCP tools 声明 ────────────────────────────
+  // 声明后 Ark 服务端会代替模型调用外部 MCP server，与内置工具（web_search 等）
+  // 一起进 tools 数组。server_url 必填且必须 https + 非私网/本机地址（归一化时
+  // 强制，不安全项被丢弃并记 warn）；headers 值支持 ${credential:REF} 模板，
+  // 每次请求前经凭据服务展开（解析不到报错，不发字面量）。
+  // 参考 https://www.volcengine.com/docs/82379/1851307
+  mcpServers: z.array(z.object({
+    server_url: z.string().required(),
+    server_label: z.string().default(""),
+    headers: z.dict(z.string(), z.string()).default({}),
+    allowed_tools: z.array(z.string()).default([]),
+    require_approval: z.union([z.boolean(), z.string()]).default(false),
+  })).default([]),
+
+  // ── Ark 多模态能力工具（生图/生视频/TTS） ──────────────────────────
+  // 这些走 Ark 标准 v3 API（不是 Agent Plan 网关），用独立凭据。
+  // 默认关闭；开启后会在 DSH 工具列表中注册对应工具。
+  imageGeneration: z.object({
+    enabled: z.boolean().default(false),
+    // 生图模型的 endpoint id（如 ep-2025xxxx-xxxx）。必须填。
+    model: z.string().default(""),
+    // 走标准 Ark v3 API 的凭据（不是 Agent Plan 的 key）。
+    apiKeyEnv: z.string().role("credential-ref").default("ARK_API_KEY"),
+    // 默认尺寸 "1024x1024"，可选 512x512 / 1024x1024 / 2048x2048 / adaptive
+    defaultSize: z.string().default("1024x1024"),
+    // 默认质量 "standard"，可选 "hd"
+    defaultQuality: z.string().default("standard"),
+  }).default({}),
+  videoGeneration: z.object({
+    enabled: z.boolean().default(false),
+    // 生视频模型的 endpoint id
+    model: z.string().default(""),
+    apiKeyEnv: z.string().role("credential-ref").default("ARK_API_KEY"),
+    // 默认分辨率 "720p"，可选 "480p" / "720p" / "1080p"
+    defaultRatio: z.string().default("16:9"),
+    defaultResolution: z.string().default("720p"),
+    // 默认时长（秒），5 或 10
+    defaultDuration: z.number().default(5),
+    // 轮询间隔（秒）
+    pollIntervalSeconds: z.number().min(2).default(5),
+    // 最长等待（秒）
+    maxWaitSeconds: z.number().min(30).default(300),
+  }).default({}),
+  tts: z.object({
+    enabled: z.boolean().default(false),
+    // TTS 的 endpoint id
+    model: z.string().default(""),
+    apiKeyEnv: z.string().role("credential-ref").default("ARK_API_KEY"),
+    // 默认音色
+    defaultVoice: z.string().default("zh_female_cancan_mars_bigtts"),
+  }).default({}),
 });
 
 const ROUTE_PREFIX = "/ark-agent-plan";
@@ -114,12 +167,14 @@ export function apply(ctx, config = {}) {
     ctx, probeUrl: responsesUrl, apiKeyCandidates, pluginName: name,
     overrides, excludes, logger: ctx.logger, fetchImpl: proxyFetch,
     extraCandidates, ...(docSources ? { docSources } : {}),
+    quota,
   });
 
   const adapter = new ArkAgentPlanAdapter({
     ctx, catalog, providerId, displayName, apiKeyCandidates,
     endpoint: responsesUrl, chatEndpoint: chatUrl,
     harnessMode, pluginName: name, defaultReasoning, quota, fetchImpl: proxyFetch,
+    mcpServers: config.mcpServers,
   });
 
   // 与 qwen-token-plan-full 相同的可见性注册模式（DSH 0.2.x 已验证）。
@@ -148,6 +203,28 @@ export function apply(ctx, config = {}) {
       try { if (typeof handle === "function") handle(); else handle?.dispose?.(); } catch { /* best effort */ }
     };
   }, "ark-agent-plan: adapter");
+
+  // 注册 Ark 多模态工具（生图/生视频/TTS）。
+  // 仅在对应 Config 子对象 enabled === true 且 model 非空时注册。
+  ctx.effect(() => {
+    const tools = createArkTools({ ctx, config, fetchImpl: proxyFetch });
+    if (tools.length === 0) return () => {};
+    const handles = [];
+    for (const tool of tools) {
+      try {
+        const handle = ctx.tools?.register?.(tool);
+        if (handle) handles.push(handle);
+        ctx.logger?.info?.(`${name}: 已注册工具 ${tool.name}`);
+      } catch (error) {
+        ctx.logger?.warn?.(`${name}: 注册工具 ${tool.name} 失败（${error instanceof Error ? error.message : String(error)}）`);
+      }
+    }
+    return () => {
+      for (const handle of handles) {
+        try { if (typeof handle === "function") handle(); else handle?.dispose?.(); } catch { /* best effort */ }
+      }
+    };
+  }, "ark-agent-plan: tools");
 
   ctx.effect(() => {
     refreshCatalog().catch(() => {});
@@ -214,9 +291,16 @@ export function apply(ctx, config = {}) {
     }
   }, "ark-agent-plan: quota route");
 
+  const mcpCount = Array.isArray(config.mcpServers) ? config.mcpServers.filter((s) => s?.server_url).length : 0;
+  const enabledTools = [
+    config.imageGeneration?.enabled ? "生图" : null,
+    config.videoGeneration?.enabled ? "生视频" : null,
+    config.tts?.enabled ? "TTS" : null,
+  ].filter(Boolean);
   ctx.logger?.info?.(
     `${name}: 已注册 provider "${providerId}"（Responses=${responsesUrl}；Chat=${chatUrl}；` +
-    `内置工具 ${harnessMode.mode}；目录每 ${refreshMinutes} 分钟刷新；额度每 ${quotaRefreshMinutes} 分钟刷新；默认思考 ${defaultReasoning}）`,
+    `内置工具 ${harnessMode.mode}；目录每 ${refreshMinutes} 分钟刷新；额度每 ${quotaRefreshMinutes} 分钟刷新；默认思考 ${defaultReasoning}；` +
+    `MCP servers ${mcpCount} 个${enabledTools.length ? `；多模态工具 ${enabledTools.join("/")}` : ""}）`,
   );
 }
 
