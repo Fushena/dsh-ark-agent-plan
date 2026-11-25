@@ -188,7 +188,10 @@ await withServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/plan/v3/contents/generations/tasks') {
     const body = JSON.parse(await readBody(req));
     assert.equal(req.headers.authorization, 'Bearer TEST_KEY');
-    assert.deepEqual(body.content, [{ type: 'text', text: '一只猫在跑' }]);
+    assert.deepEqual(body.content, [
+      { type: 'text', text: '一只猫在跑' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,' + b64(PNG) }, role: 'first_frame' },
+    ]);
     assert.equal(body.stream, undefined);
     json(res, { id: 'cgt-test-1' }); // 官方创建响应只有 id
     return;
@@ -207,6 +210,11 @@ await withServer(async (req, res) => {
 }, async (port) => {
   pollCount = 0;
   const attachments = fakeAttachments();
+  const ref = { attachmentId: 'sha256:' + 'a'.repeat(64) };
+  attachments.readImage = async (image) => {
+    assert.equal(image, ref);
+    return { data: PNG, ref: { mediaType: 'image/png' } };
+  };
   // 媒体地址是 https（真实形态）；这里模拟下载失败 → 必须降级成文本链接，
   // 不能把「下载失败」当整轮失败，也不能伪造附件引用。
   const adapter = makeAdapter(port, {
@@ -214,7 +222,9 @@ await withServer(async (req, res) => {
     media: { videoPollIntervalMs: 10, videoMaxWaitMs: 5000 },
     fetchImpl: localMedia(port, { failHosts: ['https://media.example.com/'] }),
   });
-  const chunks = await collect(adapter.stream(OPTIONS('一只猫在跑')));
+  const options = OPTIONS('一只猫在跑');
+  options.messages[0].content.push({ type: 'image', attachment: ref });
+  const chunks = await collect(adapter.stream(options));
   assert.equal(pollCount, 3, 'A2: 必须轮询到 succeeded（创建响应只有 id，不能当结果用）');
   assert.equal(fileBlocks(chunks).length, 0, '下载失败时不能伪造 file 引用');
   assert.match(textOf(chunks), /视频已生成/);
@@ -502,10 +512,21 @@ await withServer(async (req, res) => {
   assert.equal(body.stream, undefined);
   json(res, { data: [{ embedding: [0.1, 0.2, 0.3] }], usage: { prompt_tokens: 3, total_tokens: 3 } });
 }, async (port) => {
-  const adapter = makeAdapter(port, { model: MODEL('embedding', 'doubao-embedding'), ctx: makeCtx(fakeAttachments()) });
+  const attachments = fakeAttachments();
+  const save = attachments.saveFile.bind(attachments);
+  attachments.saveFile = async (file) => {
+    assert.deepEqual(JSON.parse(Buffer.from(file.data).toString()), [0.1, 0.2, 0.3]);
+    return save(file);
+  };
+  const adapter = makeAdapter(port, { model: MODEL('embedding', 'doubao-embedding'), ctx: makeCtx(attachments) });
   const chunks = await collect(adapter.stream(OPTIONS('文本')));
   assert.match(textOf(chunks), /向量维度: 3/);
+  assert.equal(fileBlocks(chunks).length, 1);
+  assert.match(attachments.saved[0].name, /\.json$/);
+  assert.equal(chunks.find((c) => c.type === 'usage').usage.inputTokens, 3);
   assert.equal(finishOf(chunks)?.kind, 'stop');
+  const noAttachments = makeAdapter(port, { model: MODEL('embedding', 'doubao-embedding'), ctx: makeCtx() });
+  assert.match(textOf(await collect(noAttachments.stream(OPTIONS('文本')))), /\[0\.1,0\.2,0\.3\]/);
 });
 
 // ── 7. 取消 / 空闲超时：多模态路线同样不能挂死或伪装成功 ────────────────────

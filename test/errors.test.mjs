@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { httpFailure, retryAfterMs } from '../lib/errors.js';
 import { chatToDshChunks } from '../lib/chat.js';
+import { responsesToDshChunks } from '../lib/responses-sse.js';
 
 function sseBody(events) {
   const text = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('');
@@ -9,6 +10,17 @@ function sseBody(events) {
   return new ReadableStream({ start(c) { c.enqueue(enc.encode(text)); c.close(); } });
 }
 async function collect(gen) { const out = []; for await (const c of gen) out.push(c); return out; }
+
+test('Ark maps transient errors inside both SSE protocols to DSH retry codes', async () => {
+  const rateLimit = { code: 'rate_limit_exceeded', message: 'slow down' };
+  const serverError = { code: 'InternalError', message: 'service unavailable' };
+  await assert.rejects(collect(chatToDshChunks(sseBody([{ error: serverError }]))), { code: 'SERVER' });
+  await assert.rejects(collect(responsesToDshChunks(sseBody([{ type: 'error', error: rateLimit }]))), { code: 'RATE_LIMIT' });
+  const chunks = await collect(responsesToDshChunks(sseBody([
+    { type: 'response.failed', response: { error: rateLimit } },
+  ])));
+  assert.equal(chunks.at(-1).reason.failure.code, 'RATE_LIMIT');
+});
 
 // 审计#6：QUOTA 关键词抢在 429/5xx 之前 → 可重试的限流/网关故障被误判成
 // 不可重试的 QUOTA。必须先按 HTTP 状态码分类，状态码无法判定时再看 body 关键词。

@@ -56,6 +56,40 @@ async function pump(stream) {
   for await (const chunk of stream) void chunk;
 }
 
+await withServer((req, res) => {
+  res.writeHead(200, SSE_HEADERS);
+  res.write(': keep-alive\n\n');
+  const timer = setInterval(() => res.write(': keep-alive\n\n'), 25);
+  const done = setTimeout(() => {
+    send(res, { type: 'response.completed', response: {} });
+    res.end();
+  }, 400);
+  res.on('close', () => { clearInterval(timer); clearTimeout(done); });
+}, async (port) => {
+  await pump(makeAdapter(port, 175).stream({ model: MODEL.id, messages: [] }));
+});
+
+// Chat does not send Ark Responses MCP declarations and must not resolve their credentials.
+{
+  const chatModel = { ...MODEL, transport: 'chat' };
+  const credentials = { resolve: async (ref) => JSON.stringify(ref).includes('MISSING_ARK_MCP_TEST')
+    ? undefined : { value: 'fixture' } };
+  const adapter = new ArkAgentPlanAdapter({
+    ctx: { get: () => credentials }, catalog: { find: () => chatModel },
+    providerId: 'ark', displayName: 'Ark', apiKeyCandidates: ['T'],
+    endpoint: 'https://ark.example.invalid/api/plan/v3/responses',
+    harnessMode: { mode: 'none' }, pluginName: 'test',
+    mcpServers: [{ server_url: 'https://mcp.example.invalid', headers: { Authorization: 'Bearer ${credential:MISSING_ARK_MCP_TEST}' } }],
+    fetchImpl: async (url) => {
+      assert.ok(url.endsWith('/api/plan/v3/chat/completions'));
+      return new Response('data: {"choices":[{"delta":{"content":"hello"},"finish_reason":"stop"}]}\n\n');
+    },
+  });
+  const chunks = [];
+  for await (const chunk of adapter.stream({ model: chatModel.id, messages: [] })) chunks.push(chunk);
+  assert.equal(chunks.at(-1).reason.kind, 'stop');
+}
+
 // A. 9 个 delta 每 150ms（约 1.35s，是 400ms 阈值的 3 倍多）+ 正常 done/completed。
 await withServer((req, res) => {
   res.writeHead(200, SSE_HEADERS);
