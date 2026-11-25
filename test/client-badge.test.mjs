@@ -246,4 +246,49 @@ const windowOf = (key, percentUsed) => ({ key, percentUsed, quota: 100, used: pe
   assert.equal(hookStates[1]?.windows?.[0]?.used, 25, 'H: 强制刷新的 POST 结果必须写入面板状态');
 }
 
-console.log('client-badge.test.mjs: 全部断言通过（徽标示数固定取 5 小时窗口 + 打开面板强制刷新不被竞态取消）');
+// I. 宿主返回自定义 providerId 时，load() 应立刻重探并把 mine 切为 true（无需等 DOM 变更/focus）。
+{
+  const noop = () => {};
+  const hookStates = []; const hookRefs = [];
+  let hookIndex = 0; let refIndex = 0; let load = null;
+  const fakeBody = {};
+  const fakeNode = {
+    parentElement: { parentElement: fakeBody },
+    querySelector: () => ({ getAttribute: (k) => (k === 'data-provider-id' ? 'my-custom-ark' : null) }),
+  };
+  const stubReact = {
+    createElement: (type, props) => {
+      if (type?.name === 'Badge') { hookIndex = 0; refIndex = 0; type({}); }
+      if (type === 'span' && props?.ref) props.ref.current = fakeNode;
+      return null;
+    },
+    useState: (initial) => {
+      const i = hookIndex++;
+      if (!(i in hookStates)) hookStates[i] = typeof initial === 'function' ? initial() : initial;
+      return [hookStates[i], (v) => { hookStates[i] = typeof v === 'function' ? v(hookStates[i]) : v; }];
+    },
+    useEffect: noop, useLayoutEffect: noop,
+    useRef: (initial) => { const i = refIndex++; if (!(i in hookRefs)) hookRefs[i] = { current: initial }; return hookRefs[i]; },
+    useCallback: (fn) => { if (!load) load = fn; return fn; },
+    Fragment: Symbol('Fragment'),
+  };
+  let captured;
+  const sandbox = {
+    window: { __ModuleLoader__: { load: ({ factory }) => { captured = factory((name) => (name === 'react' ? stubReact : {})); } }, addEventListener: noop, removeEventListener: noop },
+    document: { documentElement: { getAttribute: () => 'zh' }, body: {}, createElement: () => ({ setAttribute: noop, textContent: '' }), head: { appendChild: noop }, querySelector: () => null, getElementById: () => null },
+    navigator: { language: 'zh-CN' },
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, provider: { id: 'my-custom-ark' }, data: { planType: 'pro', windows: [] } }) }),
+    console, setTimeout, clearTimeout, setInterval, clearInterval,
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox, { filename: 'client.js' });
+  let BadgeRender = null;
+  const slots = { inject: (_n, fn) => { fn(); return () => {}; }, register: (_s, r) => { BadgeRender = r; return () => {}; } };
+  captured.apply({ get: (n) => (n === 'slots' ? slots : undefined), effect: (fn) => fn(), logger: { warn: noop } });
+  BadgeRender();
+  assert.equal(hookStates[4], false, 'I: 初始默认 providerId 不匹配自定义触发器');
+  await load(false);
+  assert.equal(hookStates[4], true, 'I: 收到自定义 provider.id 后应立即重探并显示徽标');
+}
+
+console.log('client-badge.test.mjs: 全部断言通过（徽标示数固定取 5 小时窗口 + 打开面板强制刷新不被竞态取消 + 自定义 providerId 即时重探）');

@@ -156,11 +156,15 @@ export function apply(ctx, config = {}) {
   ].filter((value, index, all) => all.indexOf(value) === index);
 
   const overrides = Array.isArray(config.models) ? config.models : [];
-  const excludes = Array.isArray(config.excludeModels) ? config.excludeModels.map(String) : [];
+  const excludes = Array.isArray(config.excludeModels)
+    ? config.excludeModels.map((s) => String(s).trim()).filter(Boolean)
+    : [];
   const refreshMinutes = Number.isFinite(config.catalogRefreshMinutes) && config.catalogRefreshMinutes >= 1
     ? config.catalogRefreshMinutes : 30;
 
-  const extraCandidates = Array.isArray(config.extraModels) ? config.extraModels.map(String) : [];
+  const extraCandidates = Array.isArray(config.extraModels)
+    ? config.extraModels.map((s) => String(s).trim()).filter(Boolean)
+    : [];
   const docSources = Array.isArray(config.modelListUrls) && config.modelListUrls.length > 0
     ? config.modelListUrls.map(String)
     : undefined;
@@ -170,9 +174,7 @@ export function apply(ctx, config = {}) {
   // TLS 会被重置（额度面板 fetch failed）。这里统一构造一个走代理的 fetch，
   // 未配置且无环境变量时原样返回原生 fetch —— 行为与改动前完全一致。
   const proxyFetch = createProxyFetch({ proxy: config.proxy, logger: ctx.logger });
-  const proxyLabel = redactProxyUrl(typeof config.proxy === "string" && config.proxy.trim() !== ""
-    ? (proxyFetch === globalThis.fetch ? "" : config.proxy)
-    : proxyFetch.proxyUrl);
+  const proxyLabel = redactProxyUrl(proxyFetch.proxyUrl);
   if (proxyLabel) ctx.logger?.info?.(`${name}: 出站请求经代理 ${proxyLabel}`);
 
   const quota = new ArkQuota({
