@@ -50,28 +50,28 @@ export const Config = z.object({
   })).default([]),
 
   // ── Ark 多模态能力工具（生图/生视频/TTS） ──────────────────────────
-  // 这些走 Ark 标准 v3 API（不是 Agent Plan 网关），用独立凭据。
+  // 生图/生视频走 Ark 标准 v3 API（不是 Agent Plan 网关），用独立凭据。
+  // 语音走 openspeech 的豆包语音接口（资源 seed-tts-2.0，不需要 endpoint id）。
   // 默认关闭；开启后会在 DSH 工具列表中注册对应工具。
   imageGeneration: z.object({
     enabled: z.boolean().default(false),
-    // 生图模型的 endpoint id（如 ep-2025xxxx-xxxx）。必须填。
+    // 生图模型的 endpoint id（如 ep-2025xxxx-xxxx）或模型名。必须填。
     model: z.string().default(""),
     // 走标准 Ark v3 API 的凭据（不是 Agent Plan 的 key）。
     apiKeyEnv: z.string().role("credential-ref").default("ARK_API_KEY"),
-    // 默认尺寸 "1024x1024"，可选 512x512 / 1024x1024 / 2048x2048 / adaptive
-    defaultSize: z.string().default("1024x1024"),
-    // 默认质量 "standard"，可选 "hd"
-    defaultQuality: z.string().default("standard"),
+    // 默认尺寸：档位 "1K"/"1.5K"/"2K"，或精确 WxH（随模型有下限，如 5.0-lite 总像素≥3686400）
+    defaultSize: z.string().default("2K"),
   }).default({}),
   videoGeneration: z.object({
     enabled: z.boolean().default(false),
     // 生视频模型的 endpoint id
     model: z.string().default(""),
     apiKeyEnv: z.string().role("credential-ref").default("ARK_API_KEY"),
-    // 默认分辨率 "720p"，可选 "480p" / "720p" / "1080p"
-    defaultRatio: z.string().default("16:9"),
+    // 画幅比例：21:9 / 16:9 / 4:3 / 1:1 / 3:4 / 9:16 / adaptive（官方默认 adaptive）
+    defaultRatio: z.string().default("adaptive"),
+    // 分辨率 "480p" / "720p" / "1080p"（1080p 仅 2.5/2.0 系）
     defaultResolution: z.string().default("720p"),
-    // 默认时长（秒），5 或 10
+    // 默认时长（秒）：2.5 系 4~30、2.0 系 4~15，-1 表示模型自选
     defaultDuration: z.number().default(5),
     // 轮询间隔（秒）
     pollIntervalSeconds: z.number().min(2).default(5),
@@ -80,11 +80,27 @@ export const Config = z.object({
   }).default({}),
   tts: z.object({
     enabled: z.boolean().default(false),
-    // TTS 的 endpoint id
-    model: z.string().default(""),
     apiKeyEnv: z.string().role("credential-ref").default("ARK_API_KEY"),
-    // 默认音色
-    defaultVoice: z.string().default("zh_female_cancan_mars_bigtts"),
+    // 默认音色（豆包语音 2.0 公版音色；1.0 的 mars 音色在 2.0 资源下不可用）
+    defaultVoice: z.string().default("zh_female_vv_uranus_bigtts"),
+    // 覆盖端点：留空用 Agent Plan 专属地址；非套餐版填 .../api/v3/tts/unidirectional
+    endpoint: z.string().default(""),
+    // 语音资源 ID：默认 seed-tts-2.0；复刻音色用 seed-icl-2.0
+    resourceId: z.string().default(""),
+  }).default({}),
+
+  // ── 多模态**对话**路线（模型选择器里选生图/生视频/语音/向量模型） ──────
+  // 走 Agent Plan 网关与套餐 Key，与上面三个独立工具分开配置。
+  mediaDefaults: z.object({
+    imageSize: z.string().default("2K"),
+    videoRatio: z.string().default("adaptive"),
+    videoResolution: z.string().default("720p"),
+    videoDuration: z.number().default(5),
+    videoPollSeconds: z.number().min(2).default(5),
+    videoMaxWaitSeconds: z.number().min(30).default(300),
+    ttsSpeaker: z.string().default("zh_female_vv_uranus_bigtts"),
+    ttsEndpoint: z.string().default(""),
+    ttsResourceId: z.string().default(""),
   }).default({}),
 });
 
@@ -170,11 +186,23 @@ export function apply(ctx, config = {}) {
     quota,
   });
 
+  const mediaDefaults = config.mediaDefaults ?? {};
   const adapter = new ArkAgentPlanAdapter({
     ctx, catalog, providerId, displayName, apiKeyCandidates,
     endpoint: responsesUrl, chatEndpoint: chatUrl,
     harnessMode, pluginName: name, defaultReasoning, quota, fetchImpl: proxyFetch,
     mcpServers: config.mcpServers,
+    media: {
+      imageSize: mediaDefaults.imageSize,
+      videoRatio: mediaDefaults.videoRatio,
+      videoResolution: mediaDefaults.videoResolution,
+      videoDuration: mediaDefaults.videoDuration,
+      videoPollIntervalMs: Number.isFinite(mediaDefaults.videoPollSeconds) ? mediaDefaults.videoPollSeconds * 1000 : undefined,
+      videoMaxWaitMs: Number.isFinite(mediaDefaults.videoMaxWaitSeconds) ? mediaDefaults.videoMaxWaitSeconds * 1000 : undefined,
+      ttsSpeaker: mediaDefaults.ttsSpeaker,
+      ttsEndpoint: mediaDefaults.ttsEndpoint,
+      ttsResourceId: mediaDefaults.ttsResourceId,
+    },
   });
 
   // 与 qwen-token-plan-full 相同的可见性注册模式（DSH 0.2.x 已验证）。

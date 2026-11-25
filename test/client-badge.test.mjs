@@ -89,4 +89,69 @@ const windowOf = (key, percentUsed) => ({ key, percentUsed, quota: 100, used: pe
   assert.equal(percentText(NaN), '—', 'F: 非数字显示占位符');
 }
 
+// G.（2026-11-24 审计 A4 客户端侧）慢 GET 晚到不得覆盖新 POST 的结果。
+// 用有状态 hooks 桩把 Badge 渲染一次，捕获第一个 useCallback（即 load 闭包）；
+// 门控 fetch 让第一次 GET 挂住，期间发起 POST（手动刷新）先完成，再放行旧 GET
+// —— 面板数据必须停留在新值。
+{
+  const noop = () => {};
+  const hookStates = []; const hookRefs = [];
+  let hookIndex = 0; let refIndex = 0; let load = null;
+  const stubReact = {
+    createElement: (type) => {
+      if (type?.name === 'Badge') { hookIndex = 0; refIndex = 0; type({}); }
+      return null;
+    },
+    useState: (initial) => {
+      const i = hookIndex++;
+      if (!(i in hookStates)) hookStates[i] = typeof initial === 'function' ? initial() : initial;
+      return [hookStates[i], (v) => { hookStates[i] = typeof v === 'function' ? v(hookStates[i]) : v; }];
+    },
+    useEffect: noop, useLayoutEffect: noop,
+    useRef: (initial) => { const i = refIndex++; if (!(i in hookRefs)) hookRefs[i] = { current: initial }; return hookRefs[i]; },
+    useCallback: (fn) => { if (!load) load = fn; return fn; }, // Badge 里第一个 useCallback 就是 load
+    Fragment: Symbol('Fragment'),
+  };
+  const pending = [];
+  const gatedFetch = (url, init) => new Promise((resolve) => { pending.push({ url, init, resolve }); });
+  const respond = (entry, payload) => entry.resolve({ ok: true, status: 200, json: async () => payload });
+  let captured;
+  const sandbox = {
+    window: { __ModuleLoader__: { load: ({ factory }) => { captured = factory((name) => (name === 'react' ? stubReact : {})); } }, addEventListener: noop, removeEventListener: noop },
+    document: { documentElement: { getAttribute: () => 'zh' }, body: {}, createElement: () => ({ setAttribute: noop, textContent: '' }), head: { appendChild: noop }, querySelector: () => null, getElementById: () => null },
+    navigator: { language: 'zh-CN' },
+    fetch: gatedFetch,
+    console, setTimeout, clearTimeout, setInterval, clearInterval,
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox, { filename: 'client.js' });
+  // 经 apply→slots 注入拿到徽标渲染函数，再渲染一次建立 hooks 状态与 load 闭包。
+  let BadgeRender = null;
+  const slots = {
+    inject: (_name, fn) => { fn(); return () => {}; },
+    register: (_seat, render) => { BadgeRender = render; return () => {}; },
+  };
+  captured.apply({ get: (n) => (n === 'slots' ? slots : undefined), effect: (fn) => fn(), logger: { warn: noop } });
+  assert.ok(BadgeRender, 'G: 应能经 slots.register 拿到徽标渲染函数');
+  BadgeRender();
+  assert.ok(load, 'G: 应捕获到 load 闭包');
+  // 发起 GET（轮询）→ 挂住；再发起 POST（手动刷新）→ 立即完成。
+  const getDone = load(false);
+  assert.equal(pending.length, 1, 'G: 第一次 load 应发出请求');
+  assert.equal(pending[0].init.method, 'GET');
+  const postDone = load(true);
+  assert.equal(pending.length, 2);
+  assert.equal(pending[1].init.method, 'POST');
+  const fresh = { ok: true, data: { planType: 'pro', windows: [{ key: 'fiveHour', percentUsed: 10, quota: 100, used: 10, remaining: 90 }] } };
+  respond(pending[1], fresh);
+  await postDone;
+  // useState 顺序：open(0), data(1), error(2), anchor(3), mine(4)。
+  assert.equal(hookStates[1]?.windows?.[0]?.used, 10, 'G: POST 完成后 data 应为新值 Used=10');
+  // 放行旧 GET（Used=90 的旧值）——不得覆盖。
+  const stale = { ok: true, data: { planType: 'pro', windows: [{ key: 'fiveHour', percentUsed: 90, quota: 100, used: 90, remaining: 10 }] } };
+  respond(pending[0], stale);
+  await getDone;
+  assert.equal(hookStates[1]?.windows?.[0]?.used, 10, `G: 晚到的旧 GET 不得覆盖新值（应仍为 10，实际 ${hookStates[1]?.windows?.[0]?.used}）`);
+}
+
 console.log('client-badge.test.mjs: 全部断言通过（徽标示数固定取 5 小时窗口）');

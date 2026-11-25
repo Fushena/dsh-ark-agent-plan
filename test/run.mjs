@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url';
  *   client-badge.test.mjs —— 徽标示数固定取近 5 小时窗口（不是三窗口最高）
  *   proxy.test.mjs   —— 代理 undici 候选不得含 cwd（RCE 回归）+ home 兜底跨平台
  *   browser-discipline.test.mjs —— 浏览器只从手动入口开（2026-11-13 弹窗纪律）
+ *   multimodal.test.mjs —— A2：视频异步任务+轮询、图片 stream 门控与真实事件名、
+ *                          语音真实响应形态（NDJSON 终止码 / 二进制），产物落真附件引用
  *
  * 每个用例单独起一个进程：`node a.mjs b.mjs` 只把 a.mjs 当作入口模块，
  * b.mjs 只会成为 argv —— 这是 Node 的语义，不是「跑两个文件」。
@@ -24,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 const electron = process.env.DSH_TEST_NODE ?? '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness';
 const executable = existsSync(electron) ? electron : process.execPath;
 const runtime = fileURLToPath(new URL('./runtime.mjs', import.meta.url));
-const tests = ['sse.test.mjs', 'stream.test.mjs', 'timeout.test.mjs', 'catalog.test.mjs', 'quota.test.mjs', 'client-badge.test.mjs', 'proxy.test.mjs', 'browser-discipline.test.mjs', 'model-display.test.mjs', 'route-guard.test.mjs', 'errors.test.mjs', 'quota-audit.test.mjs', 'quota-harvest.test.mjs', 'mcp-tools.test.mjs']
+const tests = ['sse.test.mjs', 'stream.test.mjs', 'timeout.test.mjs', 'catalog.test.mjs', 'quota.test.mjs', 'client-badge.test.mjs', 'proxy.test.mjs', 'browser-discipline.test.mjs', 'model-display.test.mjs', 'route-guard.test.mjs', 'errors.test.mjs', 'quota-audit.test.mjs', 'quota-harvest.test.mjs', 'mcp-tools.test.mjs', 'multimodal.test.mjs']
   .map((name) => fileURLToPath(new URL(name, import.meta.url)));
 
 let failed = 0;
