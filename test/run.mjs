@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
  * 全部用例都不访问网络、不读取个人凭据，用注入式 fetch / 受控时钟驱动：
  *   sse.test.mjs     —— #1 未闭合块与终止事件、#3 内置工具活动项去重
  *   stream.test.mjs  —— 真实 SSE 服务器上的长流/卡死/取消（超时必须真的中止读取）
+ *   chat.test.mjs    —— Chat Completions 流式 tool_calls 名称防护与 tool/user 消息顺序
  *   timeout.test.mjs —— 空闲超时语义（防「长回答被总时长掐断」回归）
  *   catalog.test.mjs —— #2 探测状态三态、#7 初始快照应用 excludes/overrides
  *   quota.test.mjs   —— #5 退避不会被面板轮询放大
@@ -26,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 const electron = process.env.DSH_TEST_NODE ?? '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness';
 const executable = existsSync(electron) ? electron : process.execPath;
 const runtime = fileURLToPath(new URL('./runtime.mjs', import.meta.url));
-const tests = ['sse.test.mjs', 'stream.test.mjs', 'timeout.test.mjs', 'catalog.test.mjs', 'quota.test.mjs', 'client-badge.test.mjs', 'proxy.test.mjs', 'browser-discipline.test.mjs', 'model-display.test.mjs', 'route-guard.test.mjs', 'errors.test.mjs', 'quota-audit.test.mjs', 'quota-harvest.test.mjs', 'mcp-tools.test.mjs', 'multimodal.test.mjs', 'asr.test.mjs']
+const tests = ['sse.test.mjs', 'stream.test.mjs', 'chat.test.mjs', 'timeout.test.mjs', 'catalog.test.mjs', 'quota.test.mjs', 'client-badge.test.mjs', 'proxy.test.mjs', 'browser-discipline.test.mjs', 'model-display.test.mjs', 'route-guard.test.mjs', 'errors.test.mjs', 'quota-audit.test.mjs', 'quota-harvest.test.mjs', 'mcp-tools.test.mjs', 'multimodal.test.mjs', 'asr.test.mjs']
   .map((name) => fileURLToPath(new URL(name, import.meta.url)));
 
 let failed = 0;

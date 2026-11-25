@@ -154,4 +154,96 @@ const windowOf = (key, percentUsed) => ({ key, percentUsed, quota: 100, used: pe
   assert.equal(hookStates[1]?.windows?.[0]?.used, 10, `G: 晚到的旧 GET 不得覆盖新值（应仍为 10，实际 ${hookStates[1]?.windows?.[0]?.used}）`);
 }
 
-console.log('client-badge.test.mjs: 全部断言通过（徽标示数固定取 5 小时窗口）');
+// H. 打开面板（setOpen(true) + load(true)）时，轮询 useEffect 不得随 open 变化重跑并发出 GET 覆盖 POST。
+{
+  const noop = () => {};
+  const hookStates = []; const hookRefs = []; const hookCallbacks = []; const effectRecords = [];
+  let hookIndex = 0; let refIndex = 0; let cbIndex = 0; let effectIndex = 0;
+  let buttonProps = null;
+  let BadgeComp = null;
+  const depsChanged = (prev, next) => !prev || !next || prev.length !== next.length || next.some((d, i) => !Object.is(d, prev[i]));
+  const pending = [];
+  const timers = [];
+  const gatedFetch = (url, init) => new Promise((resolve) => { pending.push({ url, init, resolve }); });
+  const respond = (entry, payload) => entry.resolve({ ok: true, status: 200, json: async () => payload });
+
+  const stubReact = {
+    createElement: (type, props) => {
+      if (type?.name === 'Badge') BadgeComp = type;
+      if (type === 'button' && props?.className === 'arkq-badge') buttonProps = props;
+      return null;
+    },
+    useState: (initial) => {
+      const i = hookIndex++;
+      if (!(i in hookStates)) hookStates[i] = typeof initial === 'function' ? initial() : initial;
+      return [hookStates[i], (v) => { hookStates[i] = typeof v === 'function' ? v(hookStates[i]) : v; }];
+    },
+    useEffect: (fn, deps) => {
+      const i = effectIndex++;
+      const prev = effectRecords[i];
+      if (!prev || depsChanged(prev.deps, deps)) {
+        prev?.cleanup?.();
+        const cleanup = fn();
+        effectRecords[i] = { deps, cleanup };
+      }
+    },
+    useLayoutEffect: noop,
+    useRef: (initial) => { const i = refIndex++; if (!(i in hookRefs)) hookRefs[i] = { current: initial }; return hookRefs[i]; },
+    useCallback: (fn, deps) => {
+      const i = cbIndex++;
+      const prev = hookCallbacks[i];
+      if (!prev || depsChanged(prev.deps, deps)) hookCallbacks[i] = { fn, deps };
+      return hookCallbacks[i].fn;
+    },
+    Fragment: Symbol('Fragment'),
+  };
+  const render = () => {
+    hookIndex = 0; refIndex = 0; cbIndex = 0; effectIndex = 0;
+    BadgeComp({});
+  };
+  let captured;
+  const sandbox = {
+    window: { __ModuleLoader__: { load: ({ factory }) => { captured = factory((name) => (name === 'react' ? stubReact : {})); } }, addEventListener: noop, removeEventListener: noop },
+    document: { documentElement: { getAttribute: () => 'zh' }, body: {}, createElement: () => ({ setAttribute: noop, textContent: '' }), head: { appendChild: noop }, querySelector: () => null, getElementById: () => null },
+    navigator: { language: 'zh-CN' },
+    fetch: gatedFetch,
+    console,
+    setTimeout, clearTimeout,
+    setInterval: (fn) => { timers.push(fn); return timers.length; },
+    clearInterval: noop,
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(source, sandbox, { filename: 'client.js' });
+  let BadgeRender = null;
+  const slots = {
+    inject: (_name, fn) => { fn(); return () => {}; },
+    register: (_seat, r) => { BadgeRender = r; return () => {}; },
+  };
+  captured.apply({ get: (n) => (n === 'slots' ? slots : undefined), effect: (fn) => fn(), logger: { warn: noop } });
+  BadgeRender();
+  render(); // 首次挂载：触发一次 GET
+  hookStates[4] = true; // mine = true
+  render(); // 渲染出 button
+  assert.equal(pending.length, 1, 'H: 首次挂载应只发出一次 GET');
+  assert.equal(pending[0].init.method, 'GET');
+  const cached = { ok: true, data: { planType: 'pro', windows: [{ key: 'fiveHour', percentUsed: 80, quota: 100, used: 80, remaining: 20 }] } };
+  respond(pending[0], cached);
+  await Promise.resolve();
+  await Promise.resolve();
+
+  // 模拟点击徽标打开面板：buttonProps.ref 挂上节点，调用 onClick，随后触发 React 重渲染（模拟 commit 后跑 effect）。
+  buttonProps.ref({ getBoundingClientRect: () => ({ top: 100, left: 100, right: 160, bottom: 120, width: 60 }) });
+  const toggleDone = buttonProps.onClick();
+  render(); // 模拟 setOpen(true) 后的重渲染与 useEffect 检查
+  assert.equal(pending.length, 2, 'H: 打开面板后只能多出一次 POST，不得被 useEffect 再发一次 GET');
+  assert.equal(pending[1].init.method, 'POST');
+  // 面板打开期间定时器触发也不得发 GET。
+  timers.at(-1)?.();
+  assert.equal(pending.length, 2, 'H: 面板打开期间轮询定时器不得发 GET');
+  const fresh = { ok: true, data: { planType: 'pro', windows: [{ key: 'fiveHour', percentUsed: 25, quota: 100, used: 25, remaining: 75 }] } };
+  respond(pending[1], fresh);
+  await toggleDone;
+  assert.equal(hookStates[1]?.windows?.[0]?.used, 25, 'H: 强制刷新的 POST 结果必须写入面板状态');
+}
+
+console.log('client-badge.test.mjs: 全部断言通过（徽标示数固定取 5 小时窗口 + 打开面板强制刷新不被竞态取消）');
