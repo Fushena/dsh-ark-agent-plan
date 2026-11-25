@@ -81,14 +81,14 @@ for (const status of [401, 403, 429, 503]) {
 // ── 审计#3 / #7 / #10 的可控身份校验目录工厂 ──────────────────────────────
 // fetchImpl 完全注入：文档站固定 DOCS_BODY；零 token 探测恒 200（alive）；
 // 身份校验（input==='hi'）的 served 回显 / 状态码由调用方决定。
-function catalogWith(fetchImpl, { overrides = [], excludes = [] } = {}) {
+function catalogWith(fetchImpl, { overrides = [], excludes = [], quota } = {}) {
   const credentials = { resolve: async () => ({ value: 'TEST_KEY' }) };
   const ctx = { get: (name) => (name === 'credentials' ? credentials : undefined), logger: { info() {}, warn() {}, debug() {} } };
   return new DynamicCatalog({
     ctx, probeUrl: 'https://ark.example.invalid/api/plan/v3/responses',
     apiKeyCandidates: ['T'], pluginName: 'test', overrides, excludes,
     logger: { info() {}, warn() {}, debug() {} }, fetchImpl,
-    docSources: ['https://docs.example.invalid/models'],
+    docSources: ['https://docs.example.invalid/models'], quota,
   });
 }
 const aliveProbe = async (url, init = {}) => {
@@ -158,4 +158,40 @@ const aliveProbe = async (url, init = {}) => {
   assert.equal(changed, true, '审计#10：仅改 override name（id 不变）也应触发 changed=true');
 }
 
-console.log('catalog.test.mjs: 全部断言通过（#2 探测状态三态 + #7 初始配置应用 + 审计#3 身份边界 / #7 瞬时故障不缓存 / #10 规格 signature）');
+// Probe the same transport the adapter will use, and enforce video plan tiers.
+{
+  const calls = [];
+  const ids = ['doubao-seedream-5.5', 'doubao-seedance-2.5-flash', 'doubao-embedding'];
+  const fetchImpl = async (url, init) => {
+    if (url.includes('docs.example.invalid')) return new Response(ids.join('\n'));
+    const body = JSON.parse(init.body);
+    calls.push({ path: new URL(url).pathname, body });
+    if (body.model === 'kimi-k2.7-code' && !url.endsWith('/chat/completions')) {
+      return new Response('UnsupportedModel', { status: 404 });
+    }
+    return Object.keys(body).length === 1
+      ? new Response('MissingParameter', { status: 400 })
+      : Response.json({ model: body.model });
+  };
+  const quota = { planType: 'small' };
+  const catalog = catalogWith(fetchImpl, { quota });
+  await catalog.refresh();
+  assert.equal(catalog.find('kimi-k2.7-code')?.transport, 'chat');
+  const kimi = calls.filter(({ body }) => body.model === 'kimi-k2.7-code');
+  assert.deepEqual(kimi.map(({ path }) => path), ['/api/plan/v3/chat/completions', '/api/plan/v3/chat/completions']);
+  assert.equal(kimi[1].body.messages[0].content, 'hi');
+  assert.equal(catalog.find(ids[0])?.transport, 'images');
+  assert.equal(catalog.find(ids[1]), undefined);
+  assert.equal(catalog.find(ids[2])?.transport, 'embedding');
+  assert.equal(catalog.find('doubao-seed-tts-2.0')?.transport, 'audio');
+  assert.equal(catalog.find('doubao-seed-asr-2.0')?.transport, 'asr');
+  assert.ok(!calls.some(({ body }) => body.model === ids[1]));
+  quota.planType = 'large';
+  await catalog.refresh();
+  assert.equal(catalog.find(ids[1])?.transport, 'video');
+  assert.deepEqual(calls.filter(({ body }) => body.model === ids[1]), [
+    { path: '/api/plan/v3/contents/generations/tasks', body: { model: ids[1] } },
+  ]);
+}
+
+console.log('catalog.test.mjs: 全部断言通过');

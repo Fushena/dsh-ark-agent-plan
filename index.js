@@ -7,6 +7,7 @@ import { AFP_PRICING } from "./lib/pricing.js";
 import { createProxyFetch, redactProxyUrl } from "./lib/proxy.js";
 import { trustedRouteRequest } from "./lib/route-guard.js";
 import { createArkTools } from "./lib/ark-tools.js";
+import { createSpeechInput } from "./lib/asr.js";
 
 const DEFAULT_ENDPOINT = "https://ark.cn-beijing.volces.com/api/plan/v3";
 const DEFAULT_KEY_CANDIDATES = ["ARK_AGENT_PLAN_CN_API_KEY", "ARK_AGENT_PLAN_API_KEY", "VOLCENGINE_ARK_PLAN_API_KEY", "ARK_CODE_API_KEY"];
@@ -187,11 +188,13 @@ export function apply(ctx, config = {}) {
   });
 
   const mediaDefaults = config.mediaDefaults ?? {};
+  const speech = createSpeechInput(providerId, catalog);
   const adapter = new ArkAgentPlanAdapter({
     ctx, catalog, providerId, displayName, apiKeyCandidates,
     endpoint: responsesUrl, chatEndpoint: chatUrl,
     harnessMode, pluginName: name, defaultReasoning, quota, fetchImpl: proxyFetch,
     mcpServers: config.mcpServers,
+    speechAttachment: speech.attachment,
     media: {
       imageSize: mediaDefaults.imageSize,
       videoRatio: mediaDefaults.videoRatio,
@@ -231,6 +234,8 @@ export function apply(ctx, config = {}) {
       try { if (typeof handle === "function") handle(); else handle?.dispose?.(); } catch { /* best effort */ }
     };
   }, "ark-agent-plan: adapter");
+
+  if (typeof ctx.on === "function") ctx.on("llm/stream", speech.intercept);
 
   // 注册 Ark 多模态工具（生图/生视频/TTS）。
   // 仅在对应 Config 子对象 enabled === true 且 model 非空时注册。
