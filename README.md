@@ -200,6 +200,18 @@ v1.1.3（2026-11-26，高/中/低危全量审计修复 + 回归测试补齐）�
 | `lib/media-io.js` | 非法重定向 `Location` URL 捕获归一化为 `PROVIDER_ERROR` |
 | `lib/model-display.js` | 多模态家族先于 `doubao` 匹配，未知家族排序位挪到 `99`（与 `dsh-qwen-token-plan-full` 保持逐字节同步） |
 
+v1.1.4（2026-11-26，全量深度审计整改：9 项高危 + 18 项中危）新增 `test/deep-audit-fixes.test.mjs`（16 项回归，共 19 个测试文件全部通过）：
+
+| 模块 | 修复内容 |
+|---|---|
+| `lib/route-guard.js` | 校验 `req.socket.remoteAddress` 为回环；拒通配绑定（`0.0.0.0`/`::`）并支持裸 IPv6；拒数组型 `sec-fetch-site` 与 `same-site`；严校验 `Host`/`Origin` 无 userinfo/path 且 `Origin === url.origin` |
+| `lib/media-io.js` / `lib/responses-sse.js` | 媒体下载接入完整私网/DNS SSRF 防护与凭据拒收；`iterateSse`/`iterateLines` 加 32 MB 缓冲上限；`readSpeechAudio` 跳过标准 SSE 控制/注释行并兼容字符串错误码与 `error` 信封 |
+| `lib/proxy.js` / `lib/content.js` | `redactProxyUrl` 拒绝无协议头 opaque scheme 防明文密码入日志；暴露 `proxyFetch.close()` 卸载释放连接池并守卫 `undici.WebSocket`；`expandCredentialTemplates` 改单遍替换；MCP 拒收日志脱敏并扩充私网段 |
+| `lib/catalog.js` | `refresh(signal)` 中止不覆写目录、新 `unknown` 候选不再跳过验身发布；修 3 段版本归一化与 `servedMatches` 跨次版本绕过；未知套餐保守放行多模态；`seed3d` 归 `transport: "3d"` |
+| `index.js` / `lib/adapter.js` / `lib/chat.js` / `lib/ark-tools.js` | `ctx.inject(["tools"])` 注册多模态工具并校验句柄；`providerRetryPolicy()` 纳入 `STREAM_CLOSED`；Responses 补空 `call_id` 与 `done` 回填；Chat 过滤空 `finish_reason`、无碰撞 `wireIndex`、`function_call`/带工具 `stop` 映射、`off` 省略 `reasoning_effort`；`deferToolCalls` 覆盖 `mcpTools`；AFP 账本补计 `cacheWriteTokens`；`tts.apiKeyEnv` 默认对齐 `ARK_AGENT_PLAN_CN_API_KEY` |
+| `lib/multimodal.js` / `lib/ark-api.js` | `promptText` 仅取最新一轮 user 消息；视频轮询单次请求与睡眠均受 `deadline` 约束 |
+| `lib/quota.js` / `lib/client.js` | 移除 `bytepluses.com` 混收并过滤过期 Cookie；`saveStoredCookie` 改原子 `0600` 写；`fetchUsageWithCookie` 禁自动重定向并识别 3xx/401/403 过期；`ArkQuota` 接入卸载 `dispose()`；`#applyLedger` 同步滚窗 `resetAt` 修复「已重置 后重置」；`!mine` 重置面板并停轮询、清理定时器与在途请求 |
+
 测试用本机 DeepSeek Harness 内置运行时；其他安装路径用 `DSH_TEST_NODE` 指定。
 
 ## License
