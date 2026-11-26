@@ -37,9 +37,10 @@ export const Config = z.object({
   // Node 默认不继承系统代理，而控制台域名在无代理时 TLS 会被重置（额度面板报 fetch failed）。
   proxy: z.string().default(""),
 
-  // 请求重试策略（交给宿主 llm-retry 执行）：在宿主默认可重试码基础上补充 STREAM_CLOSED，
-  // 让代理/网关在终止事件前干净关闭连接时可自动重试。
-  retryPolicy: RetryPolicySchema.default({ ...DEFAULT_RETRY_POLICY }).description("请求重试策略（交给宿主 llm-retry 执行），默认允许对 STREAM_CLOSED 重试。"),
+  // 空闲超时（毫秒，不是总时长）：多久没有新字节算卡死。跨境静默窗口较长，默认 120000ms。
+  requestTimeoutMs: z.number().min(1_000).default(120_000).description("空闲超时（毫秒，不是总时长）：多久没有新字节算卡死。"),
+  // 请求重试策略（交给宿主 llm-retry 执行）：默认 2 次重试并在可重试码中补充 STREAM_CLOSED。
+  retryPolicy: RetryPolicySchema.default({ ...DEFAULT_RETRY_POLICY }).description("请求重试策略（交给宿主 llm-retry 执行），默认 2 次重试并允许对 STREAM_CLOSED 重试。"),
 
   // ── Ark Responses API 的 MCP tools 声明 ────────────────────────────
   // 声明后 Ark 服务端会代替模型调用外部 MCP server，与内置工具（web_search 等）
@@ -206,6 +207,7 @@ export function apply(ctx, config = {}) {
     ctx, catalog, providerId, displayName, apiKeyCandidates,
     endpoint: responsesUrl, chatEndpoint: chatUrl,
     harnessMode, pluginName: name, defaultReasoning, quota, fetchImpl: proxyFetch,
+    requestTimeoutMs: config.requestTimeoutMs,
     retryPolicy: config.retryPolicy,
     mcpServers: config.mcpServers,
     speechAttachment: speech.attachment,

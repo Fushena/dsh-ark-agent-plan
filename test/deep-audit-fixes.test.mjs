@@ -145,12 +145,15 @@ test('Shared #3: ArkAgentPlanAdapter providerRetryPolicy includes STREAM_CLOSED'
   });
   const policy = adapter.providerRetryPolicy('ark-agent-plan');
   assert.ok(policy && Array.isArray(policy.retryableCodes));
+  assert.equal(policy.maxRetries, 2, '默认最大重试次数应对齐 2 次避免分钟级假死');
   assert.ok(policy.retryableCodes.includes('STREAM_CLOSED'), 'STREAM_CLOSED 必须在默认可重试码中');
   for (const code of ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT']) {
     assert.ok(policy.retryableCodes.includes(code), `应保留默认可重试码 ${code}`);
   }
   const defaults = plugin.Config(undefined);
   assert.ok(defaults.retryPolicy.retryableCodes.includes('STREAM_CLOSED'));
+  assert.equal(defaults.retryPolicy.maxRetries, 2);
+  assert.equal(defaults.requestTimeoutMs, 120_000);
 });
 
 // ── 4. Shared #4 & A-H2: responses-sse.js ────────────────────────────────
@@ -187,7 +190,7 @@ test('A-H2: iterateSse and iterateLines enforce max buffer caps and cancel strea
   });
   await assert.rejects(async () => {
     for await (const _ of iterateSse(bigSse, undefined, undefined, 512)) { /* drain */ }
-  }, (err) => err?.code === 'STREAM_CLOSED');
+  }, (err) => err?.code === 'MALFORMED_RESPONSE');
   assert.equal(sseCancelled, true, 'iterateSse 超限后必须取消底层流');
 
   let lineCancelled = false;
@@ -197,7 +200,7 @@ test('A-H2: iterateSse and iterateLines enforce max buffer caps and cancel strea
   });
   await assert.rejects(async () => {
     for await (const _ of iterateLines(bigLine, undefined, 512)) { /* drain */ }
-  }, (err) => err?.code === 'STREAM_CLOSED');
+  }, (err) => err?.code === 'MALFORMED_RESPONSE');
   assert.equal(lineCancelled, true, 'iterateLines 超限后必须取消底层流');
 });
 

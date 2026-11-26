@@ -212,6 +212,10 @@ v1.1.4（2026-11-26，全量深度审计整改：9 项高危 + 18 项中危）�
 | `lib/multimodal.js` / `lib/ark-api.js` | `promptText` 仅取最新一轮 user 消息；视频轮询单次请求与睡眠均受 `deadline` 约束 |
 | `lib/quota.js` / `lib/client.js` | 移除 `bytepluses.com` 混收并过滤过期 Cookie；`saveStoredCookie` 改原子 `0600` 写；`fetchUsageWithCookie` 禁自动重定向并识别 3xx/401/403 过期；`ArkQuota` 接入卸载 `dispose()`；`#applyLedger` 同步滚窗 `resetAt` 修复「已重置 后重置」；`!mine` 重置面板并停轮询、清理定时器与在途请求 |
 
+v1.1.5（2026-11-26，发布后复核收口）：
+- `lib/responses-sse.js` / `lib/media-io.js`：SSE 单事件与行流超出 32 MB 缓冲上限时改为抛出不可重试的 `MALFORMED_RESPONSE`（此前抛 `STREAM_CLOSED` 在开启断流重试后会被无意义重试）。
+- `lib/adapter.js` / `index.js`：默认重试上限收口为 `maxRetries: 2`（配 `initialDelayMs: 1000` / `maxDelayMs: 10000` / `jitterRatio: 0.1`），并向 `Config` 暴露 `requestTimeoutMs`（默认 120000 ms、最小 1000 ms）传给适配器。
+
 测试用本机 DeepSeek Harness 内置运行时；其他安装路径用 `DSH_TEST_NODE` 指定。
 
 ## License
