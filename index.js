@@ -1,6 +1,7 @@
 import z from "@deepseek-ai/schemastery";
+import { RetryPolicySchema } from "@deepseek-ai/dsh-llm";
 import { DynamicCatalog } from "./lib/catalog.js";
-import { ArkAgentPlanAdapter } from "./lib/adapter.js";
+import { ArkAgentPlanAdapter, DEFAULT_RETRY_POLICY } from "./lib/adapter.js";
 import { normalizeHarnessMode } from "./lib/harness.js";
 import { ArkQuota, bridgeAvailable } from "./lib/quota.js";
 import { AFP_PRICING } from "./lib/pricing.js";
@@ -35,6 +36,10 @@ export const Config = z.object({
   // 出站代理：留空读 HTTPS_PROXY/HTTP_PROXY/ALL_PROXY 环境变量；"none"/"off"/"direct" 强制直连。
   // Node 默认不继承系统代理，而控制台域名在无代理时 TLS 会被重置（额度面板报 fetch failed）。
   proxy: z.string().default(""),
+
+  // 请求重试策略（交给宿主 llm-retry 执行）：在宿主默认可重试码基础上补充 STREAM_CLOSED，
+  // 让代理/网关在终止事件前干净关闭连接时可自动重试。
+  retryPolicy: RetryPolicySchema.default({ ...DEFAULT_RETRY_POLICY }).description("请求重试策略（交给宿主 llm-retry 执行），默认允许对 STREAM_CLOSED 重试。"),
 
   // ── Ark Responses API 的 MCP tools 声明 ────────────────────────────
   // 声明后 Ark 服务端会代替模型调用外部 MCP server，与内置工具（web_search 等）
@@ -81,7 +86,9 @@ export const Config = z.object({
   }).default({}),
   tts: z.object({
     enabled: z.boolean().default(false),
-    apiKeyEnv: z.string().role("credential-ref").default("ARK_API_KEY"),
+    // 默认端点是 Agent Plan 专属语音路径，故默认凭据与 Agent Plan 主凭据对齐；
+    // 非套餐版覆盖 endpoint 时可同步改填对应按量/语音凭据名。
+    apiKeyEnv: z.string().role("credential-ref").default("ARK_AGENT_PLAN_CN_API_KEY"),
     // 默认音色（豆包语音 2.0 公版音色；1.0 的 mars 音色在 2.0 资源下不可用）
     defaultVoice: z.string().default("zh_female_vv_uranus_bigtts"),
     // 覆盖端点：留空用 Agent Plan 专属地址；非套餐版填 .../api/v3/tts/unidirectional
@@ -177,9 +184,13 @@ export function apply(ctx, config = {}) {
   const proxyLabel = redactProxyUrl(proxyFetch.proxyUrl);
   if (proxyLabel) ctx.logger?.info?.(`${name}: 出站请求经代理 ${proxyLabel}`);
 
+  let stopped = false;
+  const lifetime = new AbortController();
+  const refreshSignal = () => AbortSignal.any([lifetime.signal, AbortSignal.timeout(30_000)]);
+
   const quota = new ArkQuota({
     logger: ctx.logger, ttlMs: quotaRefreshMinutes * 60_000, afpPricing: AFP_PRICING,
-    fetchImpl: proxyFetch,
+    fetchImpl: proxyFetch, signal: lifetime.signal,
   });
 
   const catalog = new DynamicCatalog({
@@ -195,6 +206,7 @@ export function apply(ctx, config = {}) {
     ctx, catalog, providerId, displayName, apiKeyCandidates,
     endpoint: responsesUrl, chatEndpoint: chatUrl,
     harnessMode, pluginName: name, defaultReasoning, quota, fetchImpl: proxyFetch,
+    retryPolicy: config.retryPolicy,
     mcpServers: config.mcpServers,
     speechAttachment: speech.attachment,
     media: {
@@ -218,10 +230,6 @@ export function apply(ctx, config = {}) {
     settingsPath: [],
   }]);
 
-  let stopped = false;
-  const lifetime = new AbortController();
-  const refreshSignal = () => AbortSignal.any([lifetime.signal, AbortSignal.timeout(30_000)]);
-
   const makeTimer = (fn, ms) => (typeof ctx.interval === "function" ? ctx.interval(fn, ms) : setInterval(fn, ms));
   const clearTimer = (timer) => { try { if (typeof timer === "function") timer(); else clearInterval(timer); } catch { /* best effort */ } };
 
@@ -240,26 +248,41 @@ export function apply(ctx, config = {}) {
   if (typeof ctx.on === "function") ctx.on("llm/stream", speech.intercept);
 
   // 注册 Ark 多模态工具（生图/生视频/TTS）。
-  // 仅在对应 Config 子对象 enabled === true 且 model 非空时注册。
-  ctx.effect(() => {
-    const tools = createArkTools({ ctx, config, fetchImpl: proxyFetch });
-    if (tools.length === 0) return () => {};
-    const handles = [];
-    for (const tool of tools) {
-      try {
-        const handle = ctx.tools?.register?.(tool);
-        if (handle) handles.push(handle);
-        ctx.logger?.info?.(`${name}: 已注册工具 ${tool.name}`);
-      } catch (error) {
-        ctx.logger?.warn?.(`${name}: 注册工具 ${tool.name} 失败（${error instanceof Error ? error.message : String(error)}）`);
+  // 通过 ctx.inject(["tools"], ...) 声明对 tools 服务的可选子依赖：
+  // dsh-tools 晚初始化或被隔离时不会阻塞主插件，且 tools 就绪后自动注册；
+  // 仅当 toolsSvc.register 真实执行并返回有效句柄时才记成功日志。
+  const registerToolsOn = (targetCtx) => {
+    targetCtx.effect(() => {
+      const toolsSvc = targetCtx.get?.("tools") ?? targetCtx.tools;
+      if (typeof toolsSvc?.register !== "function") return () => {};
+      const tools = createArkTools({ ctx: targetCtx, config, fetchImpl: proxyFetch });
+      if (tools.length === 0) return () => {};
+      const handles = [];
+      for (const tool of tools) {
+        try {
+          const handle = toolsSvc.register(tool);
+          if (handle) {
+            handles.push(handle);
+            ctx.logger?.info?.(`${name}: 已注册工具 ${tool.name}`);
+          } else {
+            ctx.logger?.warn?.(`${name}: 注册工具 ${tool.name} 未返回有效句柄`);
+          }
+        } catch (error) {
+          ctx.logger?.warn?.(`${name}: 注册工具 ${tool.name} 失败（${error instanceof Error ? error.message : String(error)}）`);
+        }
       }
-    }
-    return () => {
-      for (const handle of handles) {
-        try { if (typeof handle === "function") handle(); else handle?.dispose?.(); } catch { /* best effort */ }
-      }
-    };
-  }, "ark-agent-plan: tools");
+      return () => {
+        for (const handle of handles) {
+          try { if (typeof handle === "function") handle(); else handle?.dispose?.(); } catch { /* best effort */ }
+        }
+      };
+    }, "ark-agent-plan: tools");
+  };
+  if (typeof ctx.inject === "function") {
+    ctx.inject(["tools"], (innerCtx) => registerToolsOn(innerCtx));
+  } else {
+    registerToolsOn(ctx);
+  }
 
   ctx.effect(() => {
     refreshCatalog().catch(() => {});
@@ -267,6 +290,8 @@ export function apply(ctx, config = {}) {
     return () => {
       stopped = true;
       lifetime.abort();
+      quota.dispose();
+      try { proxyFetch.close?.(); } catch { /* best effort */ }
       clearTimer(timer);
     };
   }, "ark-agent-plan: catalog refresh");

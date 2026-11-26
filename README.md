@@ -102,7 +102,7 @@ or ask a DSH agent to call `plugin_manager` → `install_bundle` with the clone'
 | `videoGeneration.defaultRatio` / `defaultResolution` / `defaultDuration` | Defaults for the tool: ratio (`adaptive` by default), resolution (`720p`; `1080p` only on 2.5/2.0), duration in seconds (2.5 series 4–30, 2.0 series 4–15, `-1` = model decides). |
 | `videoGeneration.pollIntervalSeconds` / `maxWaitSeconds` | Async task polling interval (min 2, default 5) and hard deadline (min 30, default 300). |
 | `tts.enabled` | Register `ark_text_to_speech` DSH tool. **No endpoint id needed** — speech routes by voice resource. |
-| `tts.apiKeyEnv` | Credential ref for a key valid on the speech resource (default `ARK_API_KEY`; point it at your plan/voice key). |
+| `tts.apiKeyEnv` | Credential ref for a key valid on the speech resource (default `ARK_AGENT_PLAN_CN_API_KEY`, aligned with the default Agent Plan speech endpoint; override when using a non-plan endpoint). |
 | `tts.defaultVoice` | Default speaker id (Doubao speech 2.0 public voices, e.g. `zh_female_vv_uranus_bigtts`). |
 | `tts.endpoint` / `tts.resourceId` | Override the speech endpoint / resource id. Empty = Agent Plan endpoint + `seed-tts-2.0`; non-plan accounts use `.../api/v3/tts/unidirectional`, cloned voices use `seed-icl-2.0`. |
 | `mediaDefaults` | Defaults for the **conversation** multimodal route (picking a media model in the picker), which uses the Agent Plan gateway and plan key: `imageSize`, `videoRatio`, `videoResolution`, `videoDuration`, `videoPollSeconds`, `videoMaxWaitSeconds`, `ttsSpeaker`, `ttsEndpoint`, `ttsResourceId`. Separate from the three opt-in tools above. |

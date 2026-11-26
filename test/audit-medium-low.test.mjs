@@ -79,7 +79,9 @@ test('#4: isPrivateHostLiteral blocks trailing-dot localhost and hex IPv4-mapped
   assert.equal(isPrivateHostLiteral('[::ffff:c0a8:101]'), true);
   assert.equal(isPrivateHostLiteral('[::ffff:127.0.0.1]'), true);
   assert.equal(isPrivateHostLiteral('api.example.com'), false);
-  assert.equal(isPrivateHostLiteral('[::ffff:808:808]'), false);
+  // 深度审计收紧：::ffff:0:0/96 整体按非公网 IPv6 拦截；真正公网 IPv6 仍放行。
+  assert.equal(isPrivateHostLiteral('[::ffff:808:808]'), true);
+  assert.equal(isPrivateHostLiteral('[2606:4700:4700::1111]'), false);
 });
 
 test('#5 & #6: allowBrowser skips stale stored cookie and filters non-console cookie domains', async () => {
