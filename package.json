@@ -1,6 +1,6 @@
 {
   "name": "dsh-ark-agent-plan",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Volcengine Ark Agent Plan provider for DeepSeek Harness: dynamic model catalog, thinking-effort control, server-side harness tools (web search / code interpreter / web extractor), MCP server declarations, and opt-in image/video/TTS generation tools.",
   "type": "module",
   "main": "index.js",
@@ -19,8 +19,7 @@
     "lib/*.js",
     "lib/*.json",
     "README.md",
-    "LICENSE",
-    "lib/client.js"
+    "LICENSE"
   ],
   "scripts": {
     "test": "node test/run.mjs"

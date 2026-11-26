@@ -186,6 +186,20 @@ v1.1.2（2026-11-25，整合 codex PR #1 + 整合复核修复）新增 `test/asr
 
 整合复核另修三处 PR 自带缺陷：空串 `id` 覆盖（与 qwen Q13 同源）、`lastToolBlock` 在并行调用下污染已正确的块、`streamFailureCode` 缺文本兜底导致「只给 message」的限流/故障被判不可重试。
 
+v1.1.3（2026-11-26，高/中/低危全量审计修复 + 回归测试补齐）整合 `fix/high-severity-audit-bugs` 分支，新增 `test/chat.test.mjs` 与 `test/audit-medium-low.test.mjs`（共 18 个测试文件全部通过）：
+
+| 用例 / 模块 | 修复的缺陷 |
+|---|---|
+| `lib/client.js` | 用 ref 跟踪面板 `open` 状态，避免点开面板触发轮询 `useEffect` 重跑并把强制刷新 `load(true)` 取消；`payload.provider.id` 变化时即时重探徽标可见性 |
+| `lib/chat.js` | 流式 `tool_calls` 续传分片忽略空串 / `null` 的 `function.name`，防止覆盖真实工具名；`role: "tool"` 严格排在尾随非空 `role: "user"` 消息之前 |
+| `lib/content.js` | SSRF 防护补充拦截带尾点 `localhost.` 与十六进制 IPv4-mapped IPv6 地址 |
+| `lib/quota.js` | 手动 `allowBrowser` 刷新跳过陈旧本地 Cookie；严格校验控制台 Cookie 域与 URL 主机名；页面内回落取数后绝不落盘已知 `COOKIE_EXPIRED` 的失效 Cookie |
+| `lib/ark-tools.js` | 未显式传 `n`（或传入非整数）时省略 `n` 字段而非默认塞 `n: 1`；三个工具对空/nullish 入参做防御 |
+| `lib/catalog.js` / `index.js` | 过滤空的 `excludeModels` 项避免误清目录；保留 `extraModels` 追加的语音模型；脱敏 `proxyFetch.proxyUrl`（支持裸 `host:port`） |
+| `lib/harness.js` / `adapter.js` | 内置模型尊重配置 `defaultReasoning`，并对拒绝 `off` 的模型（如 GLM）安全降级 |
+| `lib/media-io.js` | 非法重定向 `Location` URL 捕获归一化为 `PROVIDER_ERROR` |
+| `lib/model-display.js` | 多模态家族先于 `doubao` 匹配，未知家族排序位挪到 `99`（与 `dsh-qwen-token-plan-full` 保持逐字节同步） |
+
 测试用本机 DeepSeek Harness 内置运行时；其他安装路径用 `DSH_TEST_NODE` 指定。
 
 ## License

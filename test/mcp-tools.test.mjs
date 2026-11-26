@@ -533,9 +533,9 @@ console.log('✔ A1: 三工具 execute 返回对象且通过宿主 validateJsonS
     config: { enabled: true, model: 'ep-img' },
     fetchImpl: async (_url, init) => { body = JSON.parse(init.body); return jsonResponse({ data: [] }); },
   });
-  for (const [input, expected] of [[99, 4], [0, 1], [-3, 1], [2.5, 1], ['3', 1], [undefined, 1], [NaN, 1]]) {
+  for (const [input, expected] of [[99, 4], [0, 1], [-3, 1], [2.5, undefined], ['3', undefined], [undefined, undefined], [NaN, undefined]]) {
     await tool.execute({ prompt: 'x', n: input });
-    assert.equal(body.n, expected, `A1: n=${String(input)} 应钳制为 ${expected}（实际 ${body.n}）`);
+    assert.equal(body.n, expected, `A1/#7: n=${String(input)} 应钳制或省略为 ${String(expected)}（实际 ${body.n}）`);
   }
   await tool.execute({ prompt: 'x', n: 3 });
   assert.equal(body.n, 3, 'A1: 合法 n 应原样透传');
