@@ -1,6 +1,38 @@
 # dsh-ark-agent-plan
 
-Volcengine Ark **Agent Plan** provider for DeepSeek Harness (DSH 0.2.x), authored against the live gateway on 2026-11-05.
+**火山方舟 Agent Plan 插件 · Volcengine Ark Agent Plan Provider Plugin for DeepSeek Harness (DSH 0.2.x)**
+
+[![Release](https://img.shields.io/github/v/release/Fushena/dsh-ark-agent-plan?style=flat-square)](https://github.com/Fushena/dsh-ark-agent-plan/releases)
+[![DSH](https://img.shields.io/badge/DeepSeek%20Harness-0.2.x-blue?style=flat-square)](#前置条件与平台支持--prerequisites)
+[![License](https://img.shields.io/github/license/Fushena/dsh-ark-agent-plan?style=flat-square)](./LICENSE)
+
+---
+
+### 中文简介
+
+面向 **DeepSeek Harness (DSH 0.2.x)** 的火山引擎 **方舟（Ark）Agent Plan** 全功能模型路由与额度面板插件：
+
+- **动态模型目录与套餐过滤**：从官方模型文档拉取候选池并按真实协议探测可用性，自动折叠别名/日期版本，按订阅套餐等级（Small / Medium / Large / Max）动态过滤可用多模态模型。
+- **双协议与深度思考控制**：主流模型走 Responses API，Kimi K2.7 Code 走 Chat Completions；按模型契约精确控制思考档位（`off` / `low` / `medium` / `high` / `max`）。
+- **内置工具与外部 MCP 集成**：支持服务端内置工具（`web_search`、`code_interpreter`、`web_extractor`）以及通过 `mcpServers` 声明外部 HTTPS MCP 服务（支持 `${credential:REF}` 凭据模板展开）。
+- **原生多模态与本地工具**：支持 Seedream 生图、Seedance 生视频（支持首帧/参考图）、Seed3D、Embedding、TTS 与 ASR 语音转写，并可选启用 `ark_generate_image`、`ark_generate_video`、`ark_text_to_speech` 本地工具。
+- **实时 AFP 额度徽标与面板**：输入框旁展示 5 小时窗口用量，点击查看 5h / 周 / 月三窗口余量与倒计时；同步间隔内按模型单价本地实时估账，首次收割 Cookie 后全程无需启动 Chrome。
+- **稳定与安全**：可配置空闲超时与重试策略、支持 HTTP/HTTPS 出站代理、内置 SSRF/逐跳 DNS/凭据脱敏防护。
+
+### English Overview
+
+A full-featured **Volcengine Ark Agent Plan** provider plugin for **DeepSeek Harness (DSH 0.2.x)**, authored and verified against the live gateway:
+
+- **Dynamic Model Catalog & Tier Filtering**: Pulls candidates from official Ark model docs, probes live transport availability, folds dated aliases, and filters multimodal models automatically by your subscription tier (Small / Medium / Large / Max).
+- **Dual Transport & Thinking-Effort Control**: Routes most models via the Responses API and Kimi K2.7 Code via Chat Completions, with per-model thinking-effort controls (`off` / `low` / `medium` / `high` / `max`).
+- **Server-Side Harness & External MCP**: Declares built-in server tools (`web_search`, `code_interpreter`, `web_extractor`) and external HTTPS MCP servers (`mcpServers`) with per-request `${credential:REF}` template expansion.
+- **Native Multimodal & Opt-In Local Tools**: Supports Seedream (image), Seedance (video with reference images), Seed3D, embeddings, TTS, and ASR (`doubao-seed-asr-2.0`), plus opt-in local tools (`ark_generate_image`, `ark_generate_video`, `ark_text_to_speech`).
+- **Real-Time AFP Quota Badge & Panel**: Shows 5-hour window usage in the composer and 5h / weekly / monthly balances with live countdowns; ticks locally via per-model AFP pricing between console syncs, running Chrome-free after initial cookie bootstrap.
+- **Resilience & Security**: Configurable idle timeout and retry policy, HTTP/HTTPS outbound proxy support, and built-in SSRF, per-hop DNS, and credential-redaction guards.
+
+**Quick Install / 快速安装**: Paste `github:Fushena/dsh-ark-agent-plan` in the DSH **Plugins** page, or run `dsh plugin --profile desktop add github:Fushena/dsh-ark-agent-plan`.
+
+---
 
 ## Installation / 如何安装
 
