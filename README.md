@@ -248,6 +248,11 @@ v1.1.5（2026-11-26，发布后复核收口）：
 - `lib/responses-sse.js` / `lib/media-io.js`：SSE 单事件与行流超出 32 MB 缓冲上限时改为抛出不可重试的 `MALFORMED_RESPONSE`（此前抛 `STREAM_CLOSED` 在开启断流重试后会被无意义重试）。
 - `lib/adapter.js` / `index.js`：默认重试上限收口为 `maxRetries: 2`（配 `initialDelayMs: 1000` / `maxDelayMs: 10000` / `jitterRatio: 0.1`），并向 `Config` 暴露 `requestTimeoutMs`（默认 120000 ms、最小 1000 ms）传给适配器。
 
+v1.1.6（2026-11-27，动态目录快照持久化 + 新模型点分别名自动派生 + 补齐 Kimi K3.1 Pro）：
+- `lib/catalog.js` / `index.js`：将目录启动快照改为动态持久化（`~/.dsh/.ark-plan-catalog-cache.json`，原子 `0600` 写入），每次刷新成功后自动落盘，重启优先加载最新动态快照，仅在首次安装或缓存损坏时退回内置种子。
+- `lib/catalog.js`：新增 `friendlyAliasOf()`，对官方文档里带日期的新模型（如 `kimi-k3-1-pro-261024`）自动派生无日期点分友好别名（`kimi-k3.1-pro`）一并进入零 token 探测，存活后按 `modelKey` 优先友好别名折叠去重、友好别名 404 时自动回落带日期 ID。
+- `lib/builtin-catalog.json` / `lib/pricing.js`：内置种子与本地 AFP 计价表同步补齐 `kimi-k3.1-pro`。
+
 测试用本机 DeepSeek Harness 内置运行时；其他安装路径用 `DSH_TEST_NODE` 指定。
 
 ## License

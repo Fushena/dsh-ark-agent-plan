@@ -34,7 +34,7 @@ const { promptText, runMultimodal } = await import('../lib/multimodal.js');
 const { waitVideoTask } = await import('../lib/ark-api.js');
 const { createTtsTool } = await import('../lib/ark-tools.js');
 const { ArkAgentPlanAdapter } = await import('../lib/adapter.js');
-const { DynamicCatalog, servedMatches } = await import('../lib/catalog.js');
+const { DynamicCatalog, servedMatches, friendlyAliasOf } = await import('../lib/catalog.js');
 const { ArkQuota, harvestConsoleCookie, loadStoredCookie } = await import('../lib/quota.js');
 const plugin = await import('../index.js');
 
@@ -580,6 +580,80 @@ test('A-H6 & Medium catalog.js: abort does not mutate catalog, new unknown candi
   await catFutureTier.refresh();
   assert.ok(catFutureTier.find('doubao-seedance-2.5-flash'), '未知新套餐名应保守放行视频模型');
   assert.ok(catFutureTier.find('doubao-seedream-5.5'), '未知新套餐名应保守放行图片模型');
+
+  // Dynamic snapshot & friendlyAliasOf: 带日期文档模型自动派生点分友好别名、探测折叠，并原子落盘跨重启生效
+  assert.equal(friendlyAliasOf('kimi-k3-1-pro-261024'), 'kimi-k3.1-pro');
+  assert.equal(friendlyAliasOf('deepseek-v5-2-flash-270101'), 'deepseek-v5.2-flash');
+  assert.equal(friendlyAliasOf('kimi-k3.1-pro'), null);
+
+  const cacheFile = path.join(TMP, 'ark-catalog-cache.json');
+  const catDyn = new DynamicCatalog({
+    ctx,
+    probeUrl: 'https://ark.example.invalid/api/plan/v3/responses',
+    apiKeyCandidates: ['T'],
+    pluginName: 'test',
+    cacheFile,
+    docSources: ['https://docs.example.invalid/list'],
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).includes('docs.example.invalid')) {
+        return new Response('kimi-k3-2-pro-270101\n', { status: 200 });
+      }
+      const body = JSON.parse(init.body);
+      if (body.input === 'hi') return new Response(JSON.stringify({ model: body.model }), { status: 200 });
+      return new Response('{}', { status: 200 });
+    },
+  });
+  await catDyn.refresh();
+  assert.ok(catDyn.find('kimi-k3.2-pro'), '带日期文档模型应自动派生并优先发布点分友好别名 kimi-k3.2-pro');
+  assert.equal(catDyn.find('kimi-k3-2-pro-270101'), undefined, '同族日期 ID 应折叠去重');
+  assert.equal(fs.statSync(cacheFile).mode & 0o777, 0o600, '动态目录快照落盘权限必须为 0600');
+
+  // 新建实例在未 refresh 前直接从动态快照启动，跨重启保留新模型且继续应用 excludes
+  const catReloaded = new DynamicCatalog({
+    ctx,
+    probeUrl: 'https://ark.example.invalid/api/plan/v3/responses',
+    apiKeyCandidates: ['T'],
+    pluginName: 'test',
+    cacheFile,
+    excludes: ['glm'],
+    docSources: [],
+  });
+  assert.equal(catReloaded.snapshot().source, 'cache');
+  assert.ok(catReloaded.find('kimi-k3.2-pro'), '重启后未刷新前应直接从动态快照加载 kimi-k3.2-pro');
+  assert.equal(catReloaded.find('glm-5.3'), undefined, '动态快照加载时同样必须应用 excludes');
+
+  // 若友好别名 404，自动回落到带日期 ID
+  const catDatedFallback = new DynamicCatalog({
+    ctx,
+    probeUrl: 'https://ark.example.invalid/api/plan/v3/responses',
+    apiKeyCandidates: ['T'],
+    pluginName: 'test',
+    docSources: ['https://docs.example.invalid/list'],
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).includes('docs.example.invalid')) {
+        return new Response('kimi-k3-3-pro-270201\n', { status: 200 });
+      }
+      const body = JSON.parse(init.body);
+      if (body.model === 'kimi-k3.3-pro') return new Response('UnsupportedModel', { status: 404 });
+      if (body.input === 'hi') return new Response(JSON.stringify({ model: body.model }), { status: 200 });
+      return new Response('{}', { status: 200 });
+    },
+  });
+  await catDatedFallback.refresh();
+  assert.ok(catDatedFallback.find('kimi-k3-3-pro-270201'), '友好别名 404 时应自动回落保留带日期 ID');
+
+  // 损坏的快照文件优雅退回内置种子，不崩溃
+  const badCache = path.join(TMP, 'bad-catalog-cache.json');
+  fs.writeFileSync(badCache, '{corrupt json', { mode: 0o600 });
+  const catCorrupt = new DynamicCatalog({
+    ctx,
+    probeUrl: 'https://ark.example.invalid/api/plan/v3/responses',
+    apiKeyCandidates: ['T'],
+    pluginName: 'test',
+    cacheFile: badCache,
+  });
+  assert.equal(catCorrupt.snapshot().source, 'builtin');
+  assert.ok(catCorrupt.find('kimi-k3.1-pro'), '内置种子应包含 kimi-k3.1-pro');
 });
 
 // ── 10. Medium multimodal.js & media-io.js ───────────────────────────────

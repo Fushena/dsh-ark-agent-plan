@@ -1,6 +1,6 @@
 import z from "@deepseek-ai/schemastery";
 import { RetryPolicySchema } from "@deepseek-ai/dsh-llm";
-import { DynamicCatalog } from "./lib/catalog.js";
+import { DynamicCatalog, defaultCatalogCachePath } from "./lib/catalog.js";
 import { ArkAgentPlanAdapter, DEFAULT_RETRY_POLICY } from "./lib/adapter.js";
 import { normalizeHarnessMode } from "./lib/harness.js";
 import { ArkQuota, bridgeAvailable } from "./lib/quota.js";
@@ -199,6 +199,7 @@ export function apply(ctx, config = {}) {
     overrides, excludes, logger: ctx.logger, fetchImpl: proxyFetch,
     extraCandidates, ...(docSources ? { docSources } : {}),
     quota,
+    cacheFile: defaultCatalogCachePath(),
   });
 
   const mediaDefaults = config.mediaDefaults ?? {};
